@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Private</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="阅读器">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#282a36">
 <style>
   :root {
@@ -516,6 +516,109 @@
     max-height: 100px;
     overflow-y: auto;
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     Mobile layout (phones, narrow tablets in portrait)
+     Sidebar becomes a slide-in drawer; toolbar scrolls horizontally;
+     tap targets enlarged; safe-area insets respected on iOS.
+     ───────────────────────────────────────────────────────────── */
+  html, body { -webkit-text-size-adjust: 100%; }
+
+  @media (max-width: 768px) {
+    /* Safe-area insets for iPhone notch / home indicator */
+    #toolbar {
+      padding: 6px 8px;
+      padding-top: calc(6px + env(safe-area-inset-top));
+      padding-left:  calc(8px + env(safe-area-inset-left));
+      padding-right: calc(8px + env(safe-area-inset-right));
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #toolbar::-webkit-scrollbar { display: none; }
+    #toolbar h1 { display: none; }
+    .sep { display: none; }
+
+    /* Bigger tap targets */
+    .tb-btn {
+      padding: 7px 11px;
+      font-size: 13px;
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+    }
+    #font-select { padding: 7px 8px; font-size: 13px; min-height: 34px; }
+    #font-display, #width-display { min-width: 32px; font-size: 13px; }
+    .swatch { width: 22px; height: 22px; }
+
+    /* Sidebar as a slide-in drawer */
+    #sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 280px !important;
+      max-width: 85vw;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      z-index: 50;
+      box-shadow: 2px 0 16px rgba(0,0,0,0.35);
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #sidebar.mobile-open { transform: translateX(0); }
+    /* On mobile, ignore desktop .collapsed class — drawer is already off-screen by default */
+    #sidebar.collapsed { transform: translateX(-100%); }
+    #sidebar-resizer { display: none; }
+
+    /* Backdrop behind drawer */
+    #sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 49;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    #sidebar-backdrop.visible { display: block; opacity: 1; }
+    body.drawer-open { overflow: hidden; }
+
+    /* Chapter items — larger tap targets */
+    .chapter-item { padding: 11px 16px; font-size: 14px; }
+    #chapter-search input { padding: 9px 10px; font-size: 14px; }
+
+    /* Reader area takes full width */
+    #reader-wrap { padding: 16px 0; }
+    #reader { padding: 0 16px; max-width: 100%; }
+    #chapter-title { font-size: 19px; margin-bottom: 22px; letter-spacing: 1px; }
+    #content { line-height: 1.9; }
+
+    /* Nav buttons — thumb-friendly */
+    #chapter-nav { margin-top: 32px; gap: 10px; }
+    .nav-btn { padding: 14px 10px; font-size: 14px; }
+
+    /* Status bar */
+    #status-bar {
+      font-size: 10px;
+      padding: 4px 10px;
+      padding-bottom: calc(4px + env(safe-area-inset-bottom));
+      padding-left:   calc(10px + env(safe-area-inset-left));
+      padding-right:  calc(10px + env(safe-area-inset-right));
+    }
+
+    /* URL bar */
+    #url-bar { padding: 6px 10px; }
+    #url-input { font-size: 13px; padding: 8px 10px; }
+
+    /* Modals: roomier on mobile */
+    #library-modal, #sync-modal { width: 94vw; max-height: 88vh; }
+    #library-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 12px; }
+    #sync-modal .body { padding: 14px; }
+    #sync-modal input { padding: 10px; font-size: 14px; }
+    #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
+  }
 </style>
 </head>
 <body class="dracula">
@@ -568,6 +671,8 @@
   <button class="tb-btn" id="url-load-btn">加载</button>
   <button class="tb-btn" id="url-bar-close">✕ 退出网页模式</button>
 </div>
+
+<div id="sidebar-backdrop"></div>
 
 <div id="main">
   <div id="sidebar">
@@ -846,9 +951,46 @@
     }
   });
 
-  // Sidebar toggle
+  // Sidebar toggle — on mobile uses .mobile-open drawer with backdrop;
+  // on desktop uses .collapsed inline-collapse.
+  const sidebarEl = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const mobileMQ = window.matchMedia('(max-width: 768px)');
+
+  function openMobileDrawer() {
+    sidebarEl.classList.add('mobile-open');
+    sidebarBackdrop.classList.add('visible');
+    document.body.classList.add('drawer-open');
+  }
+  function closeMobileDrawer() {
+    sidebarEl.classList.remove('mobile-open');
+    sidebarBackdrop.classList.remove('visible');
+    document.body.classList.remove('drawer-open');
+  }
+
   document.getElementById('sidebar-toggle').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    if (mobileMQ.matches) {
+      if (sidebarEl.classList.contains('mobile-open')) closeMobileDrawer();
+      else openMobileDrawer();
+    } else {
+      sidebarEl.classList.toggle('collapsed');
+    }
+  });
+
+  // Tap backdrop closes drawer
+  sidebarBackdrop.addEventListener('click', closeMobileDrawer);
+
+  // Tapping a chapter on mobile: load it, then auto-close the drawer
+  document.getElementById('chapter-list').addEventListener('click', (e) => {
+    if (mobileMQ.matches && e.target.closest('.chapter-item')) {
+      closeMobileDrawer();
+    }
+  });
+
+  // If viewport crosses the mobile/desktop threshold, reset drawer state
+  mobileMQ.addEventListener('change', () => {
+    closeMobileDrawer();
+    sidebarEl.classList.remove('collapsed');
   });
 
   // Sidebar resize (drag handle)
@@ -1499,7 +1641,7 @@
 
   // ── Service Worker (PWA offline support) ──────────────────────────────
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 </script>
 </body>
