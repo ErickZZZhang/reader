@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Private</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="阅读器">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#282a36">
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: #3a3a3a;
+    --text: #d4c9b8;
+    --text-dim: #888;
+    --accent: #c8956c;
+    --accent2: #8fa876;
+    --scrollbar: #3a3a3a;
+  }
+  .light {
+    --bg: #f5f0e8;
+    --surface: #ede7db;
+    --surface2: #e3ddd1;
+    --border: #ccc5b5;
+    --text: #2c2416;
+    --text-dim: #7a6f60;
+    --accent: #8b5e3c;
+    --accent2: #4a6741;
+    --scrollbar: #c8bfb0;
+  }
+  .eye {
+    --bg: #c7edcc;
+    --surface: #bde5c3;
+    --surface2: #afddb6;
+    --border: #90c496;
+    --text: #1a2e1c;
+    --text-dim: #4a6e4d;
+    --accent: #2e6e35;
+    --accent2: #5a3e1b;
+    --scrollbar: #90c496;
+  }
+  .dracula {
+    --bg: #282a36;
+    --surface: #282a36;
+    --surface2: #44475a;
+    --border: #44475a;
+    --text: #f8f8f2;
+    --text-dim: #6272a4;
+    --accent: #bd93f9;
+    --accent2: #50fa7b;
+    --scrollbar: #44475a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Serif SC', serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* Toolbar */
+  #toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    user-select: none;
+  }
+  #toolbar h1 { font-size: 15px; color: var(--accent); margin-right: 6px; white-space: nowrap; }
+  .sep { width: 1px; height: 20px; background: var(--border); }
+  .tb-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .tb-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  label.tb-btn { cursor: pointer; }
+
+  /* Font family selector */
+  #font-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    max-width: 100px;
+  }
+  #font-select:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #font-select:focus { border-color: var(--accent); }
+  #font-select option { background: var(--surface); color: var(--text); }
+
+  /* Font size control */
+  #font-display { font-size: 12px; color: var(--text-dim); min-width: 28px; text-align: center; }
+
+  /* Width control */
+  #width-display { font-size: 12px; color: var(--text-dim); min-width: 36px; text-align: center; }
+
+  /* Theme swatches */
+  .swatch {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .swatch.active { border-color: var(--accent); }
+  .sw-dark { background: #1a1a1a; }
+  .sw-light { background: #f5f0e8; }
+  .sw-eye { background: #c7edcc; }
+  .sw-dracula { background: #bd93f9; }
+
+  /* Layout */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    width: var(--sidebar-width, 220px);
+    min-width: 0;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.2s;
+  }
+  #sidebar.collapsed { width: 0 !important; border: none; }
+  body.resizing-sidebar #sidebar { transition: none; }
+
+  /* Sidebar resize handle */
+  #sidebar-resizer {
+    width: 5px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    border-right: 1px solid transparent;
+    margin-left: -1px;
+    position: relative;
+    z-index: 5;
+    transition: background 0.15s;
+  }
+  #sidebar-resizer:hover,
+  #sidebar-resizer.dragging,
+  body.resizing-sidebar #sidebar-resizer { background: var(--accent); }
+  #sidebar.collapsed + #sidebar-resizer { display: none; }
+  body.resizing-sidebar { cursor: col-resize; user-select: none; }
+  body.resizing-sidebar * { user-select: none !important; }
+  #sidebar-header {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #chapter-search {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #chapter-search input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  #chapter-search input:focus { outline: none; border-color: var(--accent); }
+  #chapter-search input::placeholder { color: var(--text-dim); }
+  #chapter-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .chapter-item {
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    border-left: 3px solid transparent;
+    transition: background 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chapter-item:hover { background: var(--surface2); }
+  .chapter-item.active { border-left-color: var(--accent); color: var(--accent); background: var(--surface2); }
+
+  /* Reader */
+  #reader-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 0;
+    scroll-behavior: smooth;
+  }
+  #reader-wrap::-webkit-scrollbar { width: 6px; }
+  #reader-wrap::-webkit-scrollbar-track { background: transparent; }
+  #reader-wrap::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+  #reader {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  #chapter-title {
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 28px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+
+  #content {
+    line-height: 2;
+    letter-spacing: 0.05em;
+    text-align: justify;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #content p { margin-bottom: 1em; text-indent: 2em; }
+
+  /* Empty state */
+  #empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-dim);
+  }
+  #empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+  #empty-state h2 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+  #empty-state p { font-size: 13px; line-height: 1.7; }
+
+  /* Progress bar */
+  #progress-bar {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+  }
+  #progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+  }
+
+  /* Nav buttons */
+  #chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    gap: 12px;
+  }
+  .nav-btn {
+    flex: 1;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: center;
+    transition: background 0.15s;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* File input */
+  #file-input { display: none; }
+
+  /* Scrollbar for sidebar */
+  #chapter-list::-webkit-scrollbar { width: 4px; }
+  #chapter-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
+
+  /* Web mode URL bar */
+  #url-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 16px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #url-bar.visible { display: flex; }
+  #url-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    min-width: 0;
+  }
+  #url-input:focus { outline: none; border-color: var(--accent); }
+  #url-input::placeholder { color: var(--text-dim); }
+  #proxy-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    cursor: help;
+  }
+  #proxy-dot.ok  { background: #6abf69; }
+  #proxy-dot.err { background: #e74c3c; }
+
+  /* Library Modal */
+  #library-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #library-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: min(820px, 92vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #library-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #library-header span { font-size: 15px; font-weight: bold; color: var(--accent); }
+  #library-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  #library-close:hover { background: var(--surface2); color: var(--text); }
+  #library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  #library-grid::-webkit-scrollbar { width: 6px; }
+  #library-grid::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  #library-empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .book-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 14px 10px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .book-card:hover { border-color: var(--accent); }
+  .book-card-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text);
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 18px;
+  }
+  .book-card-progress { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+  .book-card-bar { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 8px; }
+  .book-card-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+  .book-card-date { font-size: 10px; color: var(--text-dim); }
+  .book-card-del {
+    position: absolute;
+    top: 6px; right: 6px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    line-height: 1;
+  }
+  .book-card-del:hover { background: #c0392b; color: #fff; }
+
+  /* Reading position memory indicator */
+  #status-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 4px 16px;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    user-select: none;
+    gap: 12px;
+  }
+  #sync-status { color: var(--text-dim); }
+  #sync-status.ok { color: var(--accent2); }
+  #sync-status.err { color: #e74c3c; }
+  #sync-status.busy { color: var(--accent); }
+
+  /* Sync settings modal (reuses library-overlay positioning) */
+  #sync-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 101;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #sync-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: min(520px, 92vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #sync-modal header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #sync-modal header span { font-size: 15px; font-weight: bold; color: var(--accent); }
+  #sync-modal header button {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 4px;
+  }
+  #sync-modal header button:hover { background: var(--surface2); color: var(--text); }
+  #sync-modal .body { padding: 16px 18px; font-size: 13px; line-height: 1.6; }
+  #sync-modal label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+  #sync-modal input[type="text"], #sync-modal input[type="password"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+  #sync-modal input:focus { outline: none; border-color: var(--accent); }
+  #sync-modal .actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  #sync-modal .hint {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 14px;
+    line-height: 1.7;
+  }
+  #sync-modal .hint code { color: var(--accent); font-family: monospace; }
+  #sync-modal .hint a { color: var(--accent); }
+  #sync-log {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: monospace;
+    white-space: pre-wrap;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body class="dracula">
+
+<div id="toolbar">
+  <h1>📖 小说阅读器</h1>
+  <div class="sep"></div>
+
+  <label class="tb-btn" for="file-input">📂 打开文件</label>
+  <input type="file" id="file-input" accept=".txt">
+  <button class="tb-btn" id="library-btn">📚 书库</button>
+  <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
+  <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
+
+  <div class="sep"></div>
+  <button class="tb-btn" id="sidebar-toggle">≡ 目录</button>
+  <div class="sep"></div>
+
+  <select id="font-select">
+    <option value="'Microsoft YaHei','PingFang SC',sans-serif">雅黑</option>
+    <option value="'SimSun','Songti SC','Noto Serif SC',serif">宋体</option>
+    <option value="'KaiTi','STKaiti','AR PL UKai CN',serif">楷体</option>
+    <option value="'SimHei','STHeiti','Noto Sans SC',sans-serif">黑体</option>
+    <option value="'FangSong','STFangsong',serif">仿宋</option>
+    <option value="'Noto Serif SC',serif">Noto Serif</option>
+  </select>
+
+  <button class="tb-btn" id="font-dec">A-</button>
+  <span id="font-display">18</span>
+  <button class="tb-btn" id="font-inc">A+</button>
+
+  <div class="sep"></div>
+  <button class="tb-btn" id="width-dec">◀</button>
+  <span id="width-display">680</span>
+  <button class="tb-btn" id="width-inc">▶</button>
+
+  <div class="sep"></div>
+  <span style="font-size:11px;color:var(--text-dim)">主题:</span>
+  <div class="swatch sw-dark" id="sw-dark" title="深色"></div>
+  <div class="swatch sw-light" id="sw-light" title="浅色"></div>
+  <div class="swatch sw-eye" id="sw-eye" title="护眼"></div>
+  <div class="swatch sw-dracula active" id="sw-dracula" title="Dracula"></div>
+</div>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<div id="url-bar">
+  <div id="proxy-dot" title="代理未检测"></div>
+  <input type="text" id="url-input" placeholder="粘贴小说章节网址，按 Enter 加载…">
+  <button class="tb-btn" id="url-load-btn">加载</button>
+  <button class="tb-btn" id="url-bar-close">✕ 退出网页模式</button>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span id="sidebar-title">章节目录</span>
+      <span id="chapter-count" style="color:var(--accent)"></span>
+    </div>
+    <div id="chapter-search">
+      <input type="text" id="chapter-search-input" placeholder="输入章节号跳转，如 42">
+    </div>
+    <div id="chapter-list"></div>
+  </div>
+  <div id="sidebar-resizer" title="拖动调整目录宽度"></div>
+
+  <div id="reader-wrap" id="reader-wrap">
+    <div id="reader">
+      <div id="empty-state">
+        <div class="icon">📚</div>
+        <h2>欢迎使用小说阅读器</h2>
+        <p>点击左上角「打开文件」加载 .txt 格式的小说<br>支持自动识别章节、深色/护眼模式、字号调整</p>
+      </div>
+      <div id="chapter-title" style="display:none"></div>
+      <div id="content"></div>
+      <div id="chapter-nav" style="display:none">
+        <button class="nav-btn" id="prev-btn">← 上一章</button>
+        <button class="nav-btn" id="next-btn">下一章 →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-left">未加载文件</span>
+  <span id="sync-status" title="点击 ☁ 同步 配置">☁ 未配置</span>
+  <span id="status-right"></span>
+</div>
+
+<div id="sync-overlay" style="display:none">
+  <div id="sync-modal">
+    <header>
+      <span>☁ 云同步设置</span>
+      <button id="sync-close">✕</button>
+    </header>
+    <div class="body">
+      <p style="color:var(--text-dim)">通过 GitHub Gist 在多台设备间同步阅读进度与偏好设置。Token 只保存在本机浏览器中，不会上传到页面代码。</p>
+
+      <label for="sync-token">GitHub Personal Access Token（scope: <code style="color:var(--accent)">gist</code>）</label>
+      <input type="password" id="sync-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+
+      <label for="sync-gist-id">Gist ID（已创建的 secret gist，留空可自动创建）</label>
+      <input type="text" id="sync-gist-id" placeholder="例如 1a2b3c4d5e6f...">
+
+      <div class="actions">
+        <button class="tb-btn" id="sync-save-btn">保存并同步</button>
+        <button class="tb-btn" id="sync-pull-btn">立即下载</button>
+        <button class="tb-btn" id="sync-push-btn">立即上传</button>
+        <button class="tb-btn" id="sync-clear-btn" style="margin-left:auto">清除配置</button>
+      </div>
+
+      <div class="hint">
+        <b>首次使用：</b><br>
+        1. 在 <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens</a> 创建 Fine-grained token，Account permissions → <code>Gists: Read and write</code>（或用 classic token 勾选 <code>gist</code>）。<br>
+        2. 粘贴 token 到上方，Gist ID 可留空 —— 点击「保存并同步」会自动创建一个私密 gist。<br>
+        3. 在其他电脑上，粘贴同一个 token 和上面的 Gist ID 即可。
+      </div>
+
+      <div id="sync-log"></div>
+    </div>
+  </div>
+</div>
+
+<div id="library-overlay" style="display:none">
+  <div id="library-modal">
+    <div id="library-header">
+      <span>📚 书库</span>
+      <button id="library-close">✕</button>
+    </div>
+    <div id="library-grid">
+      <div id="library-empty">书库为空<br>打开 .txt 文件后会自动加入书库</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let chapters = [];
+  let currentChapter = 0;
+  let fontSize = 18;
+  let currentBookKey = null; // localStorage key for the current book
+
+  function bookKey(name) { return 'novel:' + name; }
+
+  function saveProgress() {
+    if (!currentBookKey) return;
+    const data = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
+    data.chapter = currentChapter;
+    data.scroll = readerWrap.scrollTop;
+    data.lastRead = Date.now();
+    data.totalChapters = chapters.length;
+    localStorage.setItem(currentBookKey, JSON.stringify(data));
+  }
+
+  let fontFamily = "'Microsoft YaHei','PingFang SC',sans-serif";
+
+  function savePrefs() {
+    localStorage.setItem('reader:prefs', JSON.stringify({ fontSize, readerWidth, fontFamily, sidebarWidth, theme: document.body.className }));
+  }
+
+  function loadPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem('reader:prefs') || '{}');
+      if (p.fontSize) setFont(p.fontSize);
+      if (p.readerWidth) setWidth(p.readerWidth);
+      if (p.fontFamily) setFontFamily(p.fontFamily);
+      if (p.sidebarWidth) setSidebarWidth(p.sidebarWidth, false);
+      if (p.theme !== undefined) applyTheme(p.theme);
+    } catch(e) {}
+  }
+
+  const readerWrap = document.getElementById('reader-wrap');
+  const chapterTitle = document.getElementById('chapter-title');
+  const contentEl = document.getElementById('content');
+  const chapterList = document.getElementById('chapter-list');
+  const chapterNav = document.getElementById('chapter-nav');
+  const emptyState = document.getElementById('empty-state');
+  const progressFill = document.getElementById('progress-fill');
+  const statusLeft = document.getElementById('status-left');
+  const statusRight = document.getElementById('status-right');
+
+  // File loading
+  document.getElementById('file-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target.result;
+      parseNovel(file.name, text);
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  function parseNovel(name, text) {
+    // Detect chapter headings: 第X章, 第X节, Chapter X, 序章, 尾声, etc.
+    const chapterRe = /^[\s\u3000]*(第[零一二三四五六七八九十百千万\d]+[章节卷回集][\s\S]*?|Chapter\s*\d+[\s\S]*?|序章|尾声|楔子|番外[\s\S]*?|前言|后记)$/m;
+    const lines = text.split('\n');
+    const found = [];
+
+    lines.forEach((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed && chapterRe.test(trimmed) && trimmed.length < 60) {
+        found.push({ title: trimmed, startLine: i });
+      }
+    });
+
+    if (found.length < 2) {
+      // Fallback: split every ~500 lines
+      chapters = [];
+      const chunkSize = 300;
+      for (let i = 0; i < lines.length; i += chunkSize) {
+        chapters.push({
+          title: `第 ${Math.floor(i/chunkSize)+1} 段`,
+          content: lines.slice(i, i + chunkSize).join('\n')
+        });
+      }
+    } else {
+      chapters = found.map((ch, idx) => {
+        const end = found[idx+1] ? found[idx+1].startLine : lines.length;
+        const content = lines.slice(ch.startLine + 1, end).join('\n').trim();
+        return { title: ch.title, content };
+      });
+    }
+
+    document.title = name.replace('.txt','') + ' - 小说阅读器';
+    currentBookKey = bookKey(name);
+    dbSaveBook(name, text);
+    buildSidebar(name);
+
+    const saved = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
+    const startChapter = (saved.chapter >= 0 && saved.chapter < chapters.length) ? saved.chapter : 0;
+    loadChapter(startChapter, saved.scroll || 0);
+
+    emptyState.style.display = 'none';
+    chapterNav.style.display = 'flex';
+    chapterTitle.style.display = 'block';
+    statusLeft.textContent = name.replace('.txt','');
+    if (saved.chapter > 0) statusLeft.textContent += ' · 已恢复上次阅读位置';
+  }
+
+  function buildSidebar(name) {
+    chapterList.innerHTML = '';
+    document.getElementById('sidebar-title').textContent = '章节目录';
+    document.getElementById('chapter-count').textContent = chapters.length + '章';
+    chapters.forEach((ch, i) => {
+      const item = document.createElement('div');
+      item.className = 'chapter-item';
+      item.textContent = ch.title;
+      item.onclick = () => loadChapter(i);
+      chapterList.appendChild(item);
+    });
+  }
+
+  function loadChapter(idx, scrollTo = 0) {
+    if (idx < 0 || idx >= chapters.length) return;
+    currentChapter = idx;
+
+    chapterTitle.textContent = chapters[idx].title;
+    const raw = chapters[idx].content;
+    // Render paragraphs
+    contentEl.innerHTML = raw.split(/\n+/).filter(l => l.trim()).map(p =>
+      `<p>${p.trim()}</p>`
+    ).join('');
+
+    readerWrap.scrollTop = scrollTo;
+    saveProgress();
+
+    // Update sidebar
+    document.querySelectorAll('.chapter-item').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+    });
+    // Scroll sidebar to active
+    const active = chapterList.querySelector('.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+
+    document.getElementById('prev-btn').disabled = idx === 0;
+    document.getElementById('next-btn').disabled = idx === chapters.length - 1;
+
+    statusRight.textContent = `${idx+1} / ${chapters.length}`;
+    progressFill.style.width = ((idx+1)/chapters.length*100) + '%';
+  }
+
+  document.getElementById('prev-btn').onclick = () => {
+    if (webMode) loadWebChapter(webPrevUrl); else loadChapter(currentChapter - 1);
+  };
+  document.getElementById('next-btn').onclick = () => {
+    if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
+  };
+
+  // Chapter search / jump — scrolls the list to the matching chapter without hiding others
+  const chapterSearchInput = document.getElementById('chapter-search-input');
+  chapterSearchInput.addEventListener('input', () => {
+    const query = chapterSearchInput.value.trim();
+    if (!query) return;
+    const num = parseInt(query, 10);
+    if (isNaN(num) || num < 1) return;
+    // Find the best matching chapter item by its number
+    const items = chapterList.querySelectorAll('.chapter-item');
+    const target = [...items].find(el => {
+      const m = el.textContent.match(/\d+/);
+      return m && m[0].startsWith(String(num));
+    });
+    if (target) target.scrollIntoView({ block: 'center' });
+  });
+  chapterSearchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const num = parseInt(chapterSearchInput.value.trim(), 10);
+      if (!isNaN(num) && num >= 1 && num <= chapters.length) {
+        loadChapter(num - 1);
+      }
+      chapterSearchInput.value = '';
+    }
+    if (e.key === 'Escape') {
+      chapterSearchInput.value = '';
+      chapterSearchInput.blur();
+    }
+  });
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (document.activeElement === chapterSearchInput) return;
+    if (document.activeElement === document.getElementById('url-input')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      if (webMode) loadWebChapter(webPrevUrl); else loadChapter(currentChapter - 1);
+    }
+  });
+
+  // Sidebar toggle
+  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  });
+
+  // Sidebar resize (drag handle)
+  const SIDEBAR_MIN = 140, SIDEBAR_MAX_VW = 0.6;
+  let sidebarWidth = 220;
+  function setSidebarWidth(px, save) {
+    const max = Math.max(SIDEBAR_MIN, Math.floor(window.innerWidth * SIDEBAR_MAX_VW));
+    sidebarWidth = Math.max(SIDEBAR_MIN, Math.min(max, px));
+    document.documentElement.style.setProperty('--sidebar-width', sidebarWidth + 'px');
+    if (save) savePrefs();
+  }
+  (function initSidebarResize() {
+    const resizer = document.getElementById('sidebar-resizer');
+    const sidebar = document.getElementById('sidebar');
+    let dragging = false;
+    const onMove = e => {
+      if (!dragging) return;
+      const rect = sidebar.getBoundingClientRect();
+      setSidebarWidth(e.clientX - rect.left, false);
+      e.preventDefault();
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('resizing-sidebar');
+      resizer.classList.remove('dragging');
+      savePrefs();
+    };
+    resizer.addEventListener('mousedown', e => {
+      if (sidebar.classList.contains('collapsed')) return;
+      dragging = true;
+      document.body.classList.add('resizing-sidebar');
+      resizer.classList.add('dragging');
+      e.preventDefault();
+    });
+    // Double-click to reset to default
+    resizer.addEventListener('dblclick', () => setSidebarWidth(220, true));
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    // Clamp on window resize
+    window.addEventListener('resize', () => setSidebarWidth(sidebarWidth, false));
+  })();
+
+  // Font size
+  const fontDisplay = document.getElementById('font-display');
+  function setFont(size) {
+    fontSize = Math.min(32, Math.max(12, size));
+    contentEl.style.fontSize = fontSize + 'px';
+    fontDisplay.textContent = fontSize;
+  }
+  document.getElementById('font-inc').onclick = () => { setFont(fontSize + 1); savePrefs(); };
+  document.getElementById('font-dec').onclick = () => { setFont(fontSize - 1); savePrefs(); };
+
+  // Font family
+  const fontSelect = document.getElementById('font-select');
+  function setFontFamily(family) {
+    fontFamily = family;
+    contentEl.style.fontFamily = family;
+    chapterTitle.style.fontFamily = family;
+    fontSelect.value = family;
+  }
+  fontSelect.addEventListener('change', () => { setFontFamily(fontSelect.value); savePrefs(); });
+
+  // Reader width
+  let readerWidth = 680;
+  const widthDisplay = document.getElementById('width-display');
+  const readerEl = document.getElementById('reader');
+  function setWidth(w) {
+    readerWidth = Math.min(1200, Math.max(400, w));
+    readerEl.style.maxWidth = readerWidth + 'px';
+    widthDisplay.textContent = readerWidth;
+  }
+  document.getElementById('width-inc').onclick = () => { setWidth(readerWidth + 40); savePrefs(); };
+  document.getElementById('width-dec').onclick = () => { setWidth(readerWidth - 40); savePrefs(); };
+
+  // Load saved prefs on startup (font, width, theme)
+  loadPrefs();
+
+  // Themes
+  const swatches = { 'sw-dark': '', 'sw-light': 'light', 'sw-eye': 'eye', 'sw-dracula': 'dracula' };
+  const themeToSwatch = { '': 'sw-dark', 'light': 'sw-light', 'eye': 'sw-eye', 'dracula': 'sw-dracula' };
+  function applyTheme(theme) {
+    document.body.className = theme;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    const swId = themeToSwatch[theme] || 'sw-dark';
+    document.getElementById(swId).classList.add('active');
+  }
+  Object.keys(swatches).forEach(id => {
+    document.getElementById(id).onclick = () => { applyTheme(swatches[id]); savePrefs(); };
+  });
+
+  // ── IndexedDB ──────────────────────────────────────────────────────────
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('NovelReaderDB', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('books', { keyPath: 'name' });
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+  async function dbSaveBook(name, content) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('books', 'readwrite');
+      tx.objectStore('books').put({ name, content });
+      tx.oncomplete = resolve;
+      tx.onerror = e => reject(e.target.error);
+    });
+  }
+  async function dbGetBook(name) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('books', 'readonly');
+      const req = tx.objectStore('books').get(name);
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+  async function dbGetAllNames() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('books', 'readonly');
+      const req = tx.objectStore('books').getAllKeys();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = e => reject(e.target.error);
+    });
+  }
+  async function dbDeleteBook(name) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('books', 'readwrite');
+      tx.objectStore('books').delete(name);
+      tx.oncomplete = resolve;
+      tx.onerror = e => reject(e.target.error);
+    });
+  }
+
+  // ── Library UI ─────────────────────────────────────────────────────────
+  function fmtDate(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return `${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  async function openLibrary() {
+    document.getElementById('library-overlay').style.display = 'flex';
+    await renderLibrary();
+  }
+  function closeLibrary() {
+    document.getElementById('library-overlay').style.display = 'none';
+  }
+
+  async function renderLibrary() {
+    const grid = document.getElementById('library-grid');
+    const emptyMsg = document.getElementById('library-empty');
+    grid.innerHTML = '';
+    grid.appendChild(emptyMsg);
+
+    const names = await dbGetAllNames();
+    const books = names.map(name => {
+      const p = JSON.parse(localStorage.getItem(bookKey(name)) || '{}');
+      return { name, p };
+    }).sort((a, b) => (b.p.lastRead || 0) - (a.p.lastRead || 0));
+
+    if (books.length === 0) { emptyMsg.style.display = 'block'; return; }
+    emptyMsg.style.display = 'none';
+
+    books.forEach(({ name, p }) => {
+      const total = p.totalChapters || 0;
+      const cur = (p.chapter != null ? p.chapter + 1 : 1);
+      const pct = total ? Math.round(cur / total * 100) : 0;
+      const title = name.replace(/\.txt$/i, '');
+
+      const card = document.createElement('div');
+      card.className = 'book-card';
+      card.innerHTML = `
+        <div class="book-card-title">${title}</div>
+        <div class="book-card-progress">第 ${cur} 章 / ${total || '?'} 章 &middot; ${pct}%</div>
+        <div class="book-card-bar"><div class="book-card-bar-fill" style="width:${pct}%"></div></div>
+        <div class="book-card-date">${p.lastRead ? '上次: ' + fmtDate(p.lastRead) : '未读'}</div>
+        <button class="book-card-del" title="删除">✕</button>
+      `;
+      card.querySelector('.book-card-del').onclick = async e => {
+        e.stopPropagation();
+        if (confirm(`从书库删除《${title}》？`)) {
+          await dbDeleteBook(name);
+          localStorage.removeItem(bookKey(name));
+          await renderLibrary();
+        }
+      };
+      card.onclick = async () => {
+        const book = await dbGetBook(name);
+        if (book) { closeLibrary(); parseNovel(book.name, book.content); }
+      };
+      grid.appendChild(card);
+    });
+  }
+
+  document.getElementById('library-btn').onclick = openLibrary;
+  document.getElementById('library-close').onclick = closeLibrary;
+  document.getElementById('library-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('library-overlay')) closeLibrary();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLibrary(); });
+
+  // ── Web Mode ───────────────────────────────────────────────────────────
+  // Auto-detect proxy: when served by proxy.py the origin IS the proxy
+  const PROXY = (location.origin && location.origin !== 'null')
+    ? location.origin
+    : 'http://localhost:7890';
+  let webMode = false;
+  let webNextUrl = '';
+  let webPrevUrl = '';
+  let webHistory = [];
+
+  // Selectors used by most Chinese novel sites, tried in order
+  const CONTENT_SELECTORS = [
+    '#content', '#chaptercontent', '#chapter-content',
+    '#BookText', '#booktext', '#nr1', '#readcontent',
+    '.read-content', '.chapter-content', '.book-content',
+    '#chapterContent', '.chapterContent', '#novelcontent',
+    '.novel-content', '#maintext', '#article', 'article',
+  ];
+
+  async function checkProxy() {
+    const dot = document.getElementById('proxy-dot');
+    try {
+      const r = await fetch(`${PROXY}/ping`, { signal: AbortSignal.timeout(1500) });
+      if (r.ok) { dot.className = 'ok'; dot.title = '代理运行中 ✓'; return true; }
+    } catch {}
+    dot.className = 'err';
+    dot.title = '代理未启动 — 请先运行 proxy.py';
+    return false;
+  }
+
+  function enterWebMode() {
+    webMode = true;
+    document.getElementById('url-bar').classList.add('visible');
+    document.getElementById('web-mode-btn').classList.add('active');
+    document.getElementById('url-input').focus();
+    checkProxy();
+  }
+
+  function exitWebMode() {
+    webMode = false;
+    webHistory = [];
+    webNextUrl = webPrevUrl = '';
+    document.getElementById('url-bar').classList.remove('visible');
+    document.getElementById('web-mode-btn').classList.remove('active');
+    // Restore file-mode sidebar if a book is loaded
+    if (chapters.length) buildSidebar('');
+  }
+
+  async function loadWebChapter(url) {
+    if (!url) return;
+    url = url.trim();
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    document.getElementById('url-input').value = url;
+    statusLeft.textContent = '加载中…';
+
+    let html, finalUrl;
+    try {
+      const resp = await fetch(`${PROXY}?url=${encodeURIComponent(url)}`);
+      if (!resp.ok) throw new Error(`代理返回 HTTP ${resp.status}`);
+      finalUrl = resp.headers.get('X-Final-Url') || url;
+      html = await resp.text();
+    } catch (e) {
+      statusLeft.textContent = `加载失败: ${e.message}`;
+      if (!await checkProxy()) statusLeft.textContent += ' — proxy.py 未运行';
+      return;
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // --- Extract main content ---
+    let contentNode = null;
+    for (const sel of CONTENT_SELECTORS) {
+      const el = doc.querySelector(sel);
+      if (el && el.textContent.trim().length > 200) { contentNode = el; break; }
+    }
+    // Fallback: div/article with the most text that isn't the whole body
+    if (!contentNode) {
+      const bodyLen = doc.body ? doc.body.textContent.length : 1;
+      let best = 0;
+      doc.querySelectorAll('div, article, section').forEach(el => {
+        const len = el.textContent.trim().length;
+        if (len > best && len > 300 && len / bodyLen < 0.92) { best = len; contentNode = el; }
+      });
+    }
+    if (!contentNode) {
+      statusLeft.textContent = '未能提取正文，请换一个网址或等等再试';
+      return;
+    }
+
+    // --- Extract title ---
+    const title =
+      doc.querySelector('h1')?.textContent.trim() ||
+      doc.querySelector('.chapter-title, .title, .bookname')?.textContent.trim() ||
+      doc.title.split(/[-_\|]/)[0].trim() || '未知章节';
+
+    // --- Extract next / prev links ---
+    const resolveHref = a => {
+      const href = a?.getAttribute('href');
+      if (!href || /^javascript|^#/.test(href)) return '';
+      try { return new URL(href, finalUrl).href; } catch { return ''; }
+    };
+    const allLinks = [...doc.querySelectorAll('a')];
+    webNextUrl = resolveHref(allLinks.find(a => /下一[章页]|下页/.test(a.textContent)));
+    webPrevUrl = resolveHref(allLinks.find(a => /上一[章页]|上页/.test(a.textContent)));
+
+    // --- Clean and render content ---
+    const clone = contentNode.cloneNode(true);
+    clone.querySelectorAll('script,style,.ad,.ads,#ad,[class*="ad"],[id*="ad"]').forEach(e => e.remove());
+    clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+    const text = clone.textContent.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+
+    chapterTitle.textContent = title;
+    chapterTitle.style.display = 'block';
+    contentEl.innerHTML = text.split(/\n+/).filter(l => l.trim()).map(p => `<p>${p}</p>`).join('');
+    contentEl.style.fontSize = fontSize + 'px';
+    readerWrap.scrollTop = 0;
+    emptyState.style.display = 'none';
+    chapterNav.style.display = 'flex';
+
+    document.getElementById('prev-btn').disabled = !webPrevUrl;
+    document.getElementById('next-btn').disabled = !webNextUrl;
+
+    // --- Update web history sidebar ---
+    webHistory = webHistory.filter(h => h.url !== finalUrl);
+    webHistory.unshift({ title, url: finalUrl });
+    buildWebSidebar();
+
+    document.getElementById('url-input').value = finalUrl;
+    document.title = title + ' - 小说阅读器';
+    statusLeft.textContent = new URL(finalUrl).hostname;
+  }
+
+  function buildWebSidebar() {
+    chapterList.innerHTML = '';
+    document.getElementById('sidebar-title').textContent = '浏览历史';
+    document.getElementById('chapter-count').textContent = webHistory.length + '页';
+    webHistory.forEach((h, i) => {
+      const item = document.createElement('div');
+      item.className = 'chapter-item' + (i === 0 ? ' active' : '');
+      item.textContent = h.title;
+      item.title = h.url;
+      item.onclick = () => loadWebChapter(h.url);
+      chapterList.appendChild(item);
+    });
+    document.getElementById('sidebar').classList.remove('collapsed');
+  }
+
+  document.getElementById('web-mode-btn').onclick = () => webMode ? exitWebMode() : enterWebMode();
+  document.getElementById('url-bar-close').onclick = exitWebMode;
+  document.getElementById('url-load-btn').onclick = () => loadWebChapter(document.getElementById('url-input').value);
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadWebChapter(document.getElementById('url-input').value);
+  });
+
+  // Scroll progress (within chapter) + autosave
+  let scrollSaveTimer = null;
+  readerWrap.addEventListener('scroll', () => {
+    const { scrollTop, scrollHeight, clientHeight } = readerWrap;
+    const chapterProgress = scrollTop / (scrollHeight - clientHeight) || 0;
+    const overall = (currentChapter + chapterProgress) / chapters.length;
+    if (chapters.length) progressFill.style.width = (overall * 100) + '%';
+    clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = setTimeout(saveProgress, 400);
+  });
+
+  // Auto next chapter: require 3 consecutive scroll-down attempts at the bottom
+  const BOTTOM_SCROLLS_NEEDED = 3;
+  let bottomScrollCount = 0;
+  let autoChapterCooldown = false;
+  readerWrap.addEventListener('wheel', (e) => {
+    if (autoChapterCooldown || !chapters.length || e.deltaY <= 0) { bottomScrollCount = 0; return; }
+    const { scrollTop, scrollHeight, clientHeight } = readerWrap;
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 5;
+    if (!atBottom) { bottomScrollCount = 0; return; }
+    bottomScrollCount++;
+    if (bottomScrollCount >= BOTTOM_SCROLLS_NEEDED && currentChapter < chapters.length - 1) {
+      bottomScrollCount = 0;
+      autoChapterCooldown = true;
+      if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
+      setTimeout(() => { autoChapterCooldown = false; }, 800);
+    }
+  });
+  // ── Cloud Sync via GitHub Gist ────────────────────────────────────────
+  // Syncs per-book progress (chapter + scroll) and prefs across devices.
+  // Token + gistId stored in localStorage only (BYOT pattern).
+  const Sync = (() => {
+    const TOKEN_KEY = 'sync:token';
+    const GIST_KEY  = 'sync:gistId';
+    const META_KEY  = 'sync:meta';   // { prefsUpdatedAt, lastPulledAt, lastPushedAt }
+    const FILE_NAME = 'reader-progress.json';
+    const PUSH_DEBOUNCE_MS = 2000;
+
+    const statusEl = document.getElementById('sync-status');
+    const logEl = document.getElementById('sync-log');
+
+    function token()  { return localStorage.getItem(TOKEN_KEY) || ''; }
+    function gistId() { return localStorage.getItem(GIST_KEY) || ''; }
+    function configured() { return token() && gistId(); }
+
+    function getMeta() { try { return JSON.parse(localStorage.getItem(META_KEY)||'{}'); } catch(e){ return {}; } }
+    function setMeta(m) { localStorage.setItem(META_KEY, JSON.stringify({ ...getMeta(), ...m })); }
+
+    function log(msg) {
+      const ts = new Date().toLocaleTimeString();
+      logEl.textContent = `[${ts}] ${msg}\n` + logEl.textContent;
+      logEl.textContent = logEl.textContent.split('\n').slice(0, 8).join('\n');
+    }
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className = cls || '';
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return '从未';
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return s + '秒前';
+      if (s < 3600) return Math.floor(s/60) + '分钟前';
+      if (s < 86400) return Math.floor(s/3600) + '小时前';
+      return Math.floor(s/86400) + '天前';
+    }
+
+    function refreshIdleStatus() {
+      if (!configured()) { setStatus('☁ 未配置', ''); return; }
+      const m = getMeta();
+      const last = Math.max(m.lastPulledAt || 0, m.lastPushedAt || 0);
+      setStatus('☁ ' + timeAgo(last), 'ok');
+    }
+
+    // ── Snapshot current state from localStorage ──
+    function snapshot() {
+      const books = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('novel:')) {
+          try { books[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
+        }
+      }
+      let prefs = {};
+      try { prefs = JSON.parse(localStorage.getItem('reader:prefs') || '{}'); } catch(e) {}
+      return {
+        version: 1,
+        updatedAt: Date.now(),
+        prefsUpdatedAt: getMeta().prefsUpdatedAt || 0,
+        prefs,
+        books
+      };
+    }
+
+    // ── Merge remote → local. Returns {changed, reloadCurrent} ──
+    function applyRemote(remote) {
+      if (!remote || typeof remote !== 'object') return { changed: false, reloadCurrent: false };
+      let changed = false;
+      let reloadCurrent = false;
+
+      // Books: max-progress wins (chapter, then scroll). Never lose progress.
+      for (const [key, rem] of Object.entries(remote.books || {})) {
+        let loc = null;
+        try { loc = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) {}
+        const remBetter = !loc
+          || (rem.chapter || 0) > (loc.chapter || 0)
+          || ((rem.chapter || 0) === (loc.chapter || 0) && (rem.scroll || 0) > (loc.scroll || 0));
+        if (remBetter) {
+          localStorage.setItem(key, JSON.stringify(rem));
+          changed = true;
+          if (key === currentBookKey) reloadCurrent = true;
+        }
+      }
+
+      // Prefs: last-write-wins via prefsUpdatedAt.
+      const localMeta = getMeta();
+      if (remote.prefsUpdatedAt && remote.prefsUpdatedAt > (localMeta.prefsUpdatedAt || 0)) {
+        localStorage.setItem('reader:prefs', JSON.stringify(remote.prefs || {}));
+        setMeta({ prefsUpdatedAt: remote.prefsUpdatedAt });
+        loadPrefs();
+        changed = true;
+      }
+
+      return { changed, reloadCurrent };
+    }
+
+    async function gistApi(path, method, body) {
+      const res = await fetch('https://api.github.com' + path, {
+        method,
+        headers: {
+          'Authorization': 'token ' + token(),
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text.slice(0, 200)}`);
+      }
+      return res.json();
+    }
+
+    async function createGist() {
+      const data = snapshot();
+      const gist = await gistApi('/gists', 'POST', {
+        description: '小说阅读器进度同步',
+        public: false,
+        files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } }
+      });
+      localStorage.setItem(GIST_KEY, gist.id);
+      setMeta({ lastPushedAt: Date.now() });
+      log('创建新 gist: ' + gist.id);
+      return gist.id;
+    }
+
+    async function pull() {
+      if (!configured()) return;
+      setStatus('☁ 下载中…', 'busy');
+      try {
+        const gist = await gistApi('/gists/' + gistId(), 'GET');
+        const file = gist.files && gist.files[FILE_NAME];
+        if (!file) { log('gist 中无进度文件，将在下次上传时创建'); setMeta({ lastPulledAt: Date.now() }); refreshIdleStatus(); return; }
+        const remote = JSON.parse(file.content);
+        const { changed, reloadCurrent } = applyRemote(remote);
+        setMeta({ lastPulledAt: Date.now() });
+        log(changed ? '已合并远程进度' : '本地已是最新');
+        refreshIdleStatus();
+        if (reloadCurrent && chapters.length) {
+          const saved = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
+          loadChapter(saved.chapter || 0, saved.scroll || 0);
+        }
+      } catch (e) {
+        log('下载失败: ' + e.message);
+        setStatus('☁ 错误', 'err');
+      }
+    }
+
+    async function push() {
+      if (!token()) return;
+      setStatus('☁ 上传中…', 'busy');
+      try {
+        if (!gistId()) { await createGist(); refreshIdleStatus(); return; }
+        const data = snapshot();
+        await gistApi('/gists/' + gistId(), 'PATCH', {
+          files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } }
+        });
+        setMeta({ lastPushedAt: Date.now() });
+        log('已上传 (' + Object.keys(data.books).length + ' 本书)');
+        refreshIdleStatus();
+      } catch (e) {
+        log('上传失败: ' + e.message);
+        setStatus('☁ 错误', 'err');
+      }
+    }
+
+    // Debounced push — called after saveProgress / savePrefs
+    let pushTimer = null;
+    function schedulePush() {
+      if (!configured()) return;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(push, PUSH_DEBOUNCE_MS);
+    }
+
+    // Wrap saveProgress + savePrefs to trigger sync
+    const origSaveProgress = saveProgress;
+    window.saveProgress = saveProgress = function() {
+      origSaveProgress.apply(this, arguments);
+      schedulePush();
+    };
+    const origSavePrefs = savePrefs;
+    window.savePrefs = savePrefs = function() {
+      origSavePrefs.apply(this, arguments);
+      setMeta({ prefsUpdatedAt: Date.now() });
+      schedulePush();
+    };
+
+    // Push any pending changes before unload
+    window.addEventListener('beforeunload', () => {
+      if (!configured() || !pushTimer) return;
+      clearTimeout(pushTimer);
+      // Use sendBeacon-style fire-and-forget via keepalive
+      const data = snapshot();
+      fetch('https://api.github.com/gists/' + gistId(), {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'token ' + token(),
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ files: { [FILE_NAME]: { content: JSON.stringify(data) } } }),
+        keepalive: true
+      }).catch(() => {});
+    });
+
+    // ── Modal wiring ──
+    const overlay = document.getElementById('sync-overlay');
+    const tokenInput = document.getElementById('sync-token');
+    const gistInput  = document.getElementById('sync-gist-id');
+
+    function openModal() {
+      tokenInput.value = token();
+      gistInput.value  = gistId();
+      logEl.textContent = '';
+      overlay.style.display = 'flex';
+    }
+    function closeModal() { overlay.style.display = 'none'; }
+
+    document.getElementById('sync-btn').onclick = openModal;
+    document.getElementById('sync-close').onclick = closeModal;
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+    document.getElementById('sync-save-btn').onclick = async () => {
+      const t = tokenInput.value.trim();
+      const g = gistInput.value.trim();
+      if (!t) { log('请先粘贴 token'); return; }
+      localStorage.setItem(TOKEN_KEY, t);
+      if (g) localStorage.setItem(GIST_KEY, g);
+      else   localStorage.removeItem(GIST_KEY);
+      // Initialize prefs timestamp so current prefs become a sync baseline
+      if (!getMeta().prefsUpdatedAt) setMeta({ prefsUpdatedAt: Date.now() });
+      log('配置已保存，开始同步…');
+      // First pull (merge remote into local), then push (so remote has local-only books)
+      await pull();
+      await push();
+      gistInput.value = gistId();
+    };
+    document.getElementById('sync-pull-btn').onclick = pull;
+    document.getElementById('sync-push-btn').onclick = push;
+    document.getElementById('sync-clear-btn').onclick = () => {
+      if (!confirm('清除本机的 token 与 gist id？云端数据不会被删除。')) return;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(GIST_KEY);
+      localStorage.removeItem(META_KEY);
+      tokenInput.value = '';
+      gistInput.value = '';
+      log('已清除');
+      refreshIdleStatus();
+    };
+
+    // Initial status + auto-pull on startup if configured
+    refreshIdleStatus();
+    if (configured()) { pull(); }
+
+    return { pull, push, schedulePush };
+  })();
+
+  // ── Service Worker (PWA offline support) ──────────────────────────────
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
