@@ -718,7 +718,7 @@
       <button id="sync-close">✕</button>
     </header>
     <div class="body">
-      <p style="color:var(--text-dim)">通过 GitHub Gist 在多台设备间同步阅读进度与偏好设置。Token 只保存在本机浏览器中，不会上传到页面代码。</p>
+      <p style="color:var(--text-dim)">通过 GitHub Gist 在多台设备间同步<b>阅读进度</b>（章节 + 滚动位置）。字体、主题、宽度等偏好设置<b>不同步</b>，每台设备各自保留。Token 只保存在本机浏览器中，不会上传到页面代码。</p>
 
       <label for="sync-token">GitHub Personal Access Token（scope: <code style="color:var(--accent)">gist</code>）</label>
       <input type="password" id="sync-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
@@ -1402,7 +1402,7 @@
   const Sync = (() => {
     const TOKEN_KEY = 'sync:token';
     const GIST_KEY  = 'sync:gistId';
-    const META_KEY  = 'sync:meta';   // { prefsUpdatedAt, lastPulledAt, lastPushedAt }
+    const META_KEY  = 'sync:meta';   // { lastPulledAt, lastPushedAt }
     const MODE_KEY  = 'sync:mode';   // 'auto' | 'manual'
     const FILE_NAME = 'reader-progress.json';
     const PUSH_DEBOUNCE_MS = 2000;
@@ -1454,6 +1454,9 @@
     }
 
     // ── Snapshot current state from localStorage ──
+    // Note: only per-book reading progress is synced. Prefs (font size, width,
+    // theme, font family, sidebar width) are intentionally device-local so a
+    // phone and a laptop can each have their own settings.
     function snapshot() {
       const books = {};
       for (let i = 0; i < localStorage.length; i++) {
@@ -1462,13 +1465,9 @@
           try { books[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
         }
       }
-      let prefs = {};
-      try { prefs = JSON.parse(localStorage.getItem('reader:prefs') || '{}'); } catch(e) {}
       return {
-        version: 1,
+        version: 2,
         updatedAt: Date.now(),
-        prefsUpdatedAt: getMeta().prefsUpdatedAt || 0,
-        prefs,
         books
       };
     }
@@ -1493,14 +1492,9 @@
         }
       }
 
-      // Prefs: last-write-wins via prefsUpdatedAt.
-      const localMeta = getMeta();
-      if (remote.prefsUpdatedAt && remote.prefsUpdatedAt > (localMeta.prefsUpdatedAt || 0)) {
-        localStorage.setItem('reader:prefs', JSON.stringify(remote.prefs || {}));
-        setMeta({ prefsUpdatedAt: remote.prefsUpdatedAt });
-        loadPrefs();
-        changed = true;
-      }
+      // Prefs intentionally NOT synced — each device keeps its own font size,
+      // reader width, theme, etc. If the remote still carries a legacy `prefs`
+      // field from older versions, we simply ignore it.
 
       return { changed, reloadCurrent };
     }
@@ -1591,12 +1585,7 @@
       origSaveProgress.apply(this, arguments);
       schedulePush();
     };
-    const origSavePrefs = savePrefs;
-    window.savePrefs = savePrefs = function() {
-      origSavePrefs.apply(this, arguments);
-      setMeta({ prefsUpdatedAt: Date.now() });
-      schedulePush();
-    };
+    // savePrefs is intentionally NOT wrapped — prefs stay device-local.
 
     // Push any pending changes before unload
     window.addEventListener('beforeunload', () => {
@@ -1684,8 +1673,6 @@
       localStorage.setItem(TOKEN_KEY, t);
       if (g) localStorage.setItem(GIST_KEY, g);
       else   localStorage.removeItem(GIST_KEY);
-      // Initialize prefs timestamp so current prefs become a sync baseline
-      if (!getMeta().prefsUpdatedAt) setMeta({ prefsUpdatedAt: Date.now() });
       log('配置已保存，开始同步…');
       // First pull (merge remote into local), then push (so remote has local-only books)
       await pull();
