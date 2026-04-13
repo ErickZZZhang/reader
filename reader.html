@@ -223,9 +223,25 @@
     padding: 40px 0;
     scroll-behavior: smooth;
   }
-  #reader-wrap::-webkit-scrollbar { width: 6px; }
+  /* Reader scrollbar — wider & easier to grab */
+  #reader-wrap { scrollbar-width: auto; scrollbar-color: var(--scrollbar) transparent; }
+  #reader-wrap::-webkit-scrollbar { width: 14px; }
   #reader-wrap::-webkit-scrollbar-track { background: transparent; }
-  #reader-wrap::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  #reader-wrap::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 7px;
+    border: 3px solid transparent;   /* creates padding around thumb for a fatter feel */
+    background-clip: padding-box;
+    min-height: 40px;
+  }
+  #reader-wrap::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+    background-clip: padding-box;
+  }
+  #reader-wrap::-webkit-scrollbar-thumb:active {
+    background: var(--accent);
+    background-clip: padding-box;
+  }
 
   #reader {
     max-width: 680px;
