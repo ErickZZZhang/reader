@@ -1628,9 +1628,13 @@
       }
       gotoBtn.style.display = '';
       const rem = lastRemoteSnapshot && lastRemoteSnapshot.books && lastRemoteSnapshot.books[currentBookKey];
-      if (rem && typeof rem.chapter === 'number') {
-        gotoBtn.textContent = `↗ 第${rem.chapter + 1}章`;
-        gotoBtn.title = `远程进度：第 ${rem.chapter + 1} 章（当前：第 ${currentChapter + 1} 章）— 点击拉取并跳转`;
+      const remTitle = (rem && typeof rem.chapter === 'number' && chapters[rem.chapter]) ? chapters[rem.chapter].title : null;
+      if (remTitle) {
+        // Show the real chapter title, truncated for toolbar
+        const short = remTitle.length > 12 ? remTitle.slice(0, 12) + '…' : remTitle;
+        gotoBtn.textContent = `↗ ${short}`;
+        const curTitle = chapters[currentChapter] ? chapters[currentChapter].title : '未知';
+        gotoBtn.title = `远程：${remTitle}\n当前：${curTitle}\n—— 点击拉取并跳转`;
       } else {
         gotoBtn.textContent = '↗ 去最新';
         gotoBtn.title = '从 GitHub Gist 拉取最新进度并跳转';
