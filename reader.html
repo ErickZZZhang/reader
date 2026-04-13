@@ -1636,6 +1636,34 @@
     refreshIdleStatus();
     if (configured()) { pull(); }
 
+    // Auto-pull when the tab becomes visible again (e.g., opening laptop lid,
+    // switching back from another tab/app). Throttled to avoid hammering the
+    // API on rapid tab switches.
+    let lastFocusPullAt = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || !configured()) return;
+      if (Date.now() - lastFocusPullAt < 30000) return;
+      lastFocusPullAt = Date.now();
+      pull();
+    });
+
+    // Safety net: before every push, fetch current remote and merge using
+    // max-progress-wins, so a stale local state can never clobber newer
+    // remote progress.
+    const origPush = push;
+    push = async function() {
+      if (!configured()) return origPush();
+      try {
+        const gist = await gistApi('/gists/' + gistId(), 'GET');
+        const file = gist.files && gist.files[FILE_NAME];
+        if (file) {
+          const remote = JSON.parse(file.content);
+          applyRemote(remote); // merges remote into localStorage (only if remote is ahead)
+        }
+      } catch (e) { /* if pre-push fetch fails, proceed with local-only push */ }
+      return origPush();
+    };
+
     return { pull, push, schedulePush };
   })();
 
