@@ -251,6 +251,18 @@
   }
   #content p { margin-bottom: 1em; text-indent: 2em; }
 
+  /* Continuous-scroll chapter sections (file mode) */
+  .chapter-section { margin-bottom: 40px; }
+  .chapter-section + .chapter-section { border-top: 1px dashed var(--border); padding-top: 8px; }
+  .chapter-section-title {
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--accent);
+    margin: 28px 0 24px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+
   /* Empty state */
   #empty-state {
     text-align: center;
@@ -782,7 +794,17 @@
     if (!currentBookKey) return;
     const data = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
     data.chapter = currentChapter;
-    data.scroll = readerWrap.scrollTop;
+    // Scroll is stored RELATIVE to the current chapter's section so it resumes
+    // correctly across devices regardless of how many chapters were loaded above.
+    const section = document.querySelector(`.chapter-section[data-chapter="${currentChapter}"]`);
+    if (section && readerWrap) {
+      const containerTop = readerWrap.getBoundingClientRect().top;
+      const sectionTop = section.getBoundingClientRect().top;
+      data.scroll = Math.max(0, containerTop - sectionTop);
+    } else if (readerWrap) {
+      // Web mode or not-yet-rendered: fall back to absolute scrollTop
+      data.scroll = readerWrap.scrollTop;
+    }
     data.lastRead = Date.now();
     data.totalChapters = chapters.length;
     localStorage.setItem(currentBookKey, JSON.stringify(data));
@@ -869,7 +891,7 @@
 
     emptyState.style.display = 'none';
     chapterNav.style.display = 'flex';
-    chapterTitle.style.display = 'block';
+    chapterTitle.style.display = 'none'; // file mode uses inline section titles
     statusLeft.textContent = name.replace('.txt','');
     if (saved.chapter > 0) statusLeft.textContent += ' · 已恢复上次阅读位置';
   }
@@ -887,36 +909,121 @@
     });
   }
 
+  // ── Continuous-scroll rendering (file mode) ──
+  // Chapters are rendered as <section data-chapter="N"> blocks inside #content.
+  // As the user scrolls near the ends, adjacent chapters are lazily appended
+  // or prepended so scrolling flows seamlessly between chapters.
+  let loadedStart = -1, loadedEnd = -1;
+  const LOAD_AHEAD_PX = 1500; // append next when within this distance of bottom
+
+  function renderChapterSection(idx) {
+    const ch = chapters[idx];
+    const section = document.createElement('section');
+    section.className = 'chapter-section';
+    section.dataset.chapter = String(idx);
+    const body = ch.content.split(/\n+/).filter(l => l.trim()).map(p => `<p>${p.trim()}</p>`).join('');
+    section.innerHTML = `<h2 class="chapter-section-title">${ch.title}</h2>${body}`;
+    return section;
+  }
+
+  // Distance (in px) of a child element's top below the scroll container's top.
+  // Negative means the child has scrolled above the viewport top.
+  function topOffsetInScroller(el) {
+    return el.getBoundingClientRect().top - readerWrap.getBoundingClientRect().top;
+  }
+
   function loadChapter(idx, scrollTo = 0) {
     if (idx < 0 || idx >= chapters.length) return;
     currentChapter = idx;
 
-    chapterTitle.textContent = chapters[idx].title;
-    const raw = chapters[idx].content;
-    // Render paragraphs
-    contentEl.innerHTML = raw.split(/\n+/).filter(l => l.trim()).map(p =>
-      `<p>${p.trim()}</p>`
-    ).join('');
+    // Top #chapter-title is used by web mode only; hide in file mode.
+    chapterTitle.style.display = 'none';
 
-    readerWrap.scrollTop = scrollTo;
+    // Fresh render — replace any previously loaded range
+    contentEl.innerHTML = '';
+    contentEl.appendChild(renderChapterSection(idx));
+    loadedStart = loadedEnd = idx;
+
+    // Scroll so the start of this chapter is at top, plus any saved offset within it
+    readerWrap.scrollTop = 0;
+    const section = contentEl.firstElementChild;
+    readerWrap.scrollTop = topOffsetInScroller(section) + scrollTo;
+
     saveProgress();
-
-    // Update sidebar
-    document.querySelectorAll('.chapter-item').forEach((el, i) => {
-      el.classList.toggle('active', i === idx);
-    });
-    // Scroll sidebar to active
-    const active = chapterList.querySelector('.active');
-    if (active) active.scrollIntoView({ block: 'nearest' });
-
+    updateSidebarActive(idx);
     document.getElementById('prev-btn').disabled = idx === 0;
     document.getElementById('next-btn').disabled = idx === chapters.length - 1;
-
     statusRight.textContent = `${idx+1} / ${chapters.length}`;
     progressFill.style.width = ((idx+1)/chapters.length*100) + '%';
 
-    // Update goto-latest button to reflect the new current chapter
     try { Sync.refreshGotoLatestBtn(); } catch(e) {}
+
+    // Preemptively load the next chapter so the bottom of this one flows into it
+    maybeLoadAdjacentChapters();
+  }
+
+  function updateSidebarActive(idx) {
+    document.querySelectorAll('.chapter-item').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+    });
+    const active = chapterList.querySelector('.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  function appendChapter(idx) {
+    if (idx <= loadedEnd || idx >= chapters.length) return false;
+    contentEl.appendChild(renderChapterSection(idx));
+    loadedEnd = idx;
+    return true;
+  }
+
+  function prependChapter(idx) {
+    if (idx >= loadedStart || idx < 0) return false;
+    const prevHeight = contentEl.scrollHeight;
+    const prevScrollTop = readerWrap.scrollTop;
+    contentEl.insertBefore(renderChapterSection(idx), contentEl.firstChild);
+    loadedStart = idx;
+    // Keep user's visual position: add the new content's height to scrollTop
+    const added = contentEl.scrollHeight - prevHeight;
+    readerWrap.scrollTop = prevScrollTop + added;
+    return true;
+  }
+
+  function maybeLoadAdjacentChapters() {
+    if (!chapters.length) return;
+    const { scrollTop, scrollHeight, clientHeight } = readerWrap;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    if (distanceToBottom < LOAD_AHEAD_PX && loadedEnd < chapters.length - 1) {
+      appendChapter(loadedEnd + 1);
+    }
+    if (scrollTop < LOAD_AHEAD_PX && loadedStart > 0) {
+      prependChapter(loadedStart - 1);
+    }
+  }
+
+  // Determine which loaded chapter currently occupies the top of the viewport,
+  // and keep `currentChapter` in sync as the user scrolls through sections.
+  function updateCurrentChapterFromScroll() {
+    if (!chapters.length) return;
+    const sections = contentEl.querySelectorAll('.chapter-section');
+    if (!sections.length) return;
+    // Viewport "reading line" — slightly below the top to feel natural
+    const readingLine = 80;
+    let active = parseInt(sections[0].dataset.chapter, 10);
+    for (const s of sections) {
+      if (topOffsetInScroller(s) <= readingLine) {
+        active = parseInt(s.dataset.chapter, 10);
+      } else break;
+    }
+    if (active !== currentChapter) {
+      currentChapter = active;
+      updateSidebarActive(active);
+      document.getElementById('prev-btn').disabled = active === 0;
+      document.getElementById('next-btn').disabled = active === chapters.length - 1;
+      statusRight.textContent = `${active+1} / ${chapters.length}`;
+      progressFill.style.width = ((active+1)/chapters.length*100) + '%';
+      try { Sync.refreshGotoLatestBtn(); } catch(e) {}
+    }
   }
 
   document.getElementById('prev-btn').onclick = () => {
@@ -1368,33 +1475,31 @@
     if (e.key === 'Enter') loadWebChapter(document.getElementById('url-input').value);
   });
 
-  // Scroll progress (within chapter) + autosave
+  // Scroll handler: track active chapter, lazy-load neighbors, update progress,
+  // autosave. In web mode we keep a simpler within-chapter progress readout.
   let scrollSaveTimer = null;
   readerWrap.addEventListener('scroll', () => {
+    if (!webMode) {
+      updateCurrentChapterFromScroll();
+      maybeLoadAdjacentChapters();
+    }
     const { scrollTop, scrollHeight, clientHeight } = readerWrap;
-    const chapterProgress = scrollTop / (scrollHeight - clientHeight) || 0;
-    const overall = (currentChapter + chapterProgress) / chapters.length;
-    if (chapters.length) progressFill.style.width = (overall * 100) + '%';
+    if (webMode) {
+      const chapterProgress = scrollTop / (scrollHeight - clientHeight) || 0;
+      progressFill.style.width = (chapterProgress * 100) + '%';
+    } else if (chapters.length) {
+      // File mode: combine chapter index with within-section scroll for a smooth overall bar
+      const sec = document.querySelector(`.chapter-section[data-chapter="${currentChapter}"]`);
+      let within = 0;
+      if (sec) {
+        const h = sec.getBoundingClientRect().height;
+        within = h > 0 ? Math.max(0, Math.min(1, (readerWrap.getBoundingClientRect().top - sec.getBoundingClientRect().top) / h)) : 0;
+      }
+      const overall = (currentChapter + within) / chapters.length;
+      progressFill.style.width = (overall * 100) + '%';
+    }
     clearTimeout(scrollSaveTimer);
     scrollSaveTimer = setTimeout(saveProgress, 400);
-  });
-
-  // Auto next chapter: require 3 consecutive scroll-down attempts at the bottom
-  const BOTTOM_SCROLLS_NEEDED = 3;
-  let bottomScrollCount = 0;
-  let autoChapterCooldown = false;
-  readerWrap.addEventListener('wheel', (e) => {
-    if (autoChapterCooldown || !chapters.length || e.deltaY <= 0) { bottomScrollCount = 0; return; }
-    const { scrollTop, scrollHeight, clientHeight } = readerWrap;
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 5;
-    if (!atBottom) { bottomScrollCount = 0; return; }
-    bottomScrollCount++;
-    if (bottomScrollCount >= BOTTOM_SCROLLS_NEEDED && currentChapter < chapters.length - 1) {
-      bottomScrollCount = 0;
-      autoChapterCooldown = true;
-      if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
-      setTimeout(() => { autoChapterCooldown = false; }, 800);
-    }
   });
   // ── Cloud Sync via GitHub Gist ────────────────────────────────────────
   // Syncs per-book progress (chapter + scroll) and prefs across devices.
