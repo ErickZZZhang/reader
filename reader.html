@@ -632,6 +632,7 @@
   <button class="tb-btn" id="library-btn">📚 书库</button>
   <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
+  <button class="tb-btn" id="goto-latest-btn" title="拉取最新进度并跳转" style="display:none">↗ 去最新</button>
 
   <div class="sep"></div>
   <button class="tb-btn" id="sidebar-toggle">≡ 目录</button>
@@ -724,6 +725,19 @@
 
       <label for="sync-gist-id">Gist ID（已创建的 secret gist，留空可自动创建）</label>
       <input type="text" id="sync-gist-id" placeholder="例如 1a2b3c4d5e6f...">
+
+      <label>同步模式</label>
+      <div id="sync-mode-group" style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text);">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="sync-mode" value="auto"> 自动（后台持续同步）
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="sync-mode" value="manual"> 手动（只在点击按钮时同步）
+        </label>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.6;">
+        手动模式适合在公司网络或流量敏感场景，避免频繁访问 GitHub。可随时点击工具栏的「↗ 去最新」或此处按钮同步。
+      </p>
 
       <div class="actions">
         <button class="tb-btn" id="sync-save-btn">保存并同步</button>
@@ -900,6 +914,9 @@
 
     statusRight.textContent = `${idx+1} / ${chapters.length}`;
     progressFill.style.width = ((idx+1)/chapters.length*100) + '%';
+
+    // Update goto-latest button to reflect the new current chapter
+    try { Sync.refreshGotoLatestBtn(); } catch(e) {}
   }
 
   document.getElementById('prev-btn').onclick = () => {
@@ -1386,8 +1403,17 @@
     const TOKEN_KEY = 'sync:token';
     const GIST_KEY  = 'sync:gistId';
     const META_KEY  = 'sync:meta';   // { prefsUpdatedAt, lastPulledAt, lastPushedAt }
+    const MODE_KEY  = 'sync:mode';   // 'auto' | 'manual'
     const FILE_NAME = 'reader-progress.json';
     const PUSH_DEBOUNCE_MS = 2000;
+
+    // In-memory snapshot of the remote as of the last pull.
+    // Used to populate the "↗ 去最新 · 第N章" button without extra API calls.
+    let lastRemoteSnapshot = null;
+
+    function getMode() { return localStorage.getItem(MODE_KEY) || 'auto'; }
+    function setMode(m) { localStorage.setItem(MODE_KEY, m === 'manual' ? 'manual' : 'auto'); }
+    function isAuto() { return getMode() === 'auto'; }
 
     const statusEl = document.getElementById('sync-status');
     const logEl = document.getElementById('sync-log');
@@ -1423,7 +1449,8 @@
       if (!configured()) { setStatus('☁ 未配置', ''); return; }
       const m = getMeta();
       const last = Math.max(m.lastPulledAt || 0, m.lastPushedAt || 0);
-      setStatus('☁ ' + timeAgo(last), 'ok');
+      const prefix = isAuto() ? '☁' : '☁ 手动';
+      setStatus(prefix + ' · ' + timeAgo(last), 'ok');
     }
 
     // ── Snapshot current state from localStorage ──
@@ -1516,6 +1543,7 @@
         const file = gist.files && gist.files[FILE_NAME];
         if (!file) { log('gist 中无进度文件，将在下次上传时创建'); setMeta({ lastPulledAt: Date.now() }); refreshIdleStatus(); return; }
         const remote = JSON.parse(file.content);
+        lastRemoteSnapshot = remote;  // cache for goto-latest button
         const { changed, reloadCurrent } = applyRemote(remote);
         setMeta({ lastPulledAt: Date.now() });
         log(changed ? '已合并远程进度' : '本地已是最新');
@@ -1524,6 +1552,7 @@
           const saved = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
           loadChapter(saved.chapter || 0, saved.scroll || 0);
         }
+        refreshGotoLatestBtn();
       } catch (e) {
         log('下载失败: ' + e.message);
         setStatus('☁ 错误', 'err');
@@ -1551,7 +1580,7 @@
     // Debounced push — called after saveProgress / savePrefs
     let pushTimer = null;
     function schedulePush() {
-      if (!configured()) return;
+      if (!configured() || !isAuto()) return;  // manual mode skips auto-push
       clearTimeout(pushTimer);
       pushTimer = setTimeout(push, PUSH_DEBOUNCE_MS);
     }
@@ -1571,7 +1600,7 @@
 
     // Push any pending changes before unload
     window.addEventListener('beforeunload', () => {
-      if (!configured() || !pushTimer) return;
+      if (!configured() || !isAuto() || !pushTimer) return;
       clearTimeout(pushTimer);
       // Use sendBeacon-style fire-and-forget via keepalive
       const data = snapshot();
@@ -1587,18 +1616,58 @@
       }).catch(() => {});
     });
 
+    // ── "↗ 去最新" button (toolbar) ──
+    // Shown only when sync is configured AND a book is currently loaded.
+    // Label adapts to show the remote chapter if we know it from the last pull.
+    const gotoBtn = document.getElementById('goto-latest-btn');
+
+    function refreshGotoLatestBtn() {
+      if (!configured() || !currentBookKey || !chapters.length) {
+        gotoBtn.style.display = 'none';
+        return;
+      }
+      gotoBtn.style.display = '';
+      const rem = lastRemoteSnapshot && lastRemoteSnapshot.books && lastRemoteSnapshot.books[currentBookKey];
+      if (rem && typeof rem.chapter === 'number') {
+        gotoBtn.textContent = `↗ 第${rem.chapter + 1}章`;
+        gotoBtn.title = `远程进度：第 ${rem.chapter + 1} 章（当前：第 ${currentChapter + 1} 章）— 点击拉取并跳转`;
+      } else {
+        gotoBtn.textContent = '↗ 去最新';
+        gotoBtn.title = '从 GitHub Gist 拉取最新进度并跳转';
+      }
+    }
+
+    gotoBtn.onclick = async () => {
+      if (!configured()) { openModal(); return; }
+      await pull();
+      // After pull, applyRemote has already jumped to the synced position if higher.
+      refreshGotoLatestBtn();
+    };
+
     // ── Modal wiring ──
     const overlay = document.getElementById('sync-overlay');
     const tokenInput = document.getElementById('sync-token');
     const gistInput  = document.getElementById('sync-gist-id');
+    const modeRadios = document.querySelectorAll('input[name="sync-mode"]');
 
     function openModal() {
       tokenInput.value = token();
       gistInput.value  = gistId();
+      modeRadios.forEach(r => { r.checked = (r.value === getMode()); });
       logEl.textContent = '';
       overlay.style.display = 'flex';
     }
     function closeModal() { overlay.style.display = 'none'; }
+
+    modeRadios.forEach(r => {
+      r.addEventListener('change', () => {
+        if (r.checked) {
+          setMode(r.value);
+          log('同步模式：' + (r.value === 'auto' ? '自动' : '手动'));
+          refreshIdleStatus();
+        }
+      });
+    });
 
     document.getElementById('sync-btn').onclick = openModal;
     document.getElementById('sync-close').onclick = closeModal;
@@ -1632,16 +1701,17 @@
       refreshIdleStatus();
     };
 
-    // Initial status + auto-pull on startup if configured
+    // Initial status + auto-pull on startup (only in auto mode)
     refreshIdleStatus();
-    if (configured()) { pull(); }
+    if (configured() && isAuto()) { pull(); }
+    refreshGotoLatestBtn();
 
     // Auto-pull when the tab becomes visible again (e.g., opening laptop lid,
     // switching back from another tab/app). Throttled to avoid hammering the
     // API on rapid tab switches.
     let lastFocusPullAt = Date.now();
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible' || !configured()) return;
+      if (document.visibilityState !== 'visible' || !configured() || !isAuto()) return;
       if (Date.now() - lastFocusPullAt < 30000) return;
       lastFocusPullAt = Date.now();
       pull();
@@ -1664,7 +1734,7 @@
       return origPush();
     };
 
-    return { pull, push, schedulePush };
+    return { pull, push, schedulePush, refreshGotoLatestBtn };
   })();
 
   // ── Service Worker (PWA offline support) ──────────────────────────────

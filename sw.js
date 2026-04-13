@@ -1,4 +1,4 @@
-const CACHE = 'novel-reader-v2';
+const CACHE = 'novel-reader-v3';
 // Paths are relative to the sw.js file's scope (works on GitHub Pages subpaths)
 const ASSETS = ['./', './reader.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
