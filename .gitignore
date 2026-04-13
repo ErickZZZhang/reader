@@ -1,0 +1,22 @@
+# Whitelist .gitignore: block everything, then re-allow specific files.
+# This is intentional so that stray `git add -A` cannot accidentally commit
+# novels, binaries, caches, or personal content.
+
+# Block everything in this directory and all subdirectories
+*
+*/
+
+# Re-allow the .gitignore itself
+!.gitignore
+
+# Reader app (static site deployed via GitHub Pages)
+!reader.html
+!manifest.json
+!sw.js
+!README.md
+
+# Supporting Python scripts
+!generate_icons.py
+!proxy.py
+!chapter_renumber.py
+!chapter_renumber.spec
