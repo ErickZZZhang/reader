@@ -223,6 +223,49 @@
     padding: 40px 0;
     scroll-behavior: smooth;
   }
+  /* Hover-to-scroll controls (desktop only) — two circular buttons floating
+     just left of the scrollbar. Hovering scrolls continuously until mouseleave. */
+  #scroll-controls {
+    position: fixed;
+    right: 22px;          /* sits just left of the 14px scrollbar */
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 30;
+    pointer-events: none;   /* clicks pass through; children opt back in */
+  }
+  #scroll-controls button {
+    pointer-events: auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  #scroll-controls button:hover {
+    opacity: 1;
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    transform: scale(1.08);
+  }
+  /* Hide on mobile — hover-scroll is a mouse-only UX */
+  @media (max-width: 768px), (hover: none) {
+    #scroll-controls { display: none; }
+  }
+
   /* Reader scrollbar — wider & easier to grab */
   #reader-wrap { scrollbar-width: auto; scrollbar-color: var(--scrollbar) transparent; }
   #reader-wrap::-webkit-scrollbar { width: 14px; }
@@ -719,6 +762,11 @@
       </div>
     </div>
   </div>
+</div>
+
+<div id="scroll-controls" aria-hidden="true">
+  <button id="scroll-up-btn" title="悬停向上滚动">▲</button>
+  <button id="scroll-down-btn" title="悬停向下滚动">▼</button>
 </div>
 
 <div id="status-bar">
@@ -1742,6 +1790,29 @@
     };
 
     return { pull, push, schedulePush, refreshGotoLatestBtn };
+  })();
+
+  // ── Hover-to-scroll buttons ──────────────────────────────────────────
+  // While the mouse is over the up/down button, scroll the reader continuously.
+  // Speed is similar to holding down the arrow key, but without any pause.
+  (function setupHoverScroll() {
+    const SPEED_PX_PER_FRAME = 8; // ≈ 480 px/sec at 60fps — smooth reading pace
+    function bind(btn, dir) {
+      let rafId = null;
+      const step = dir === 'up' ? -SPEED_PX_PER_FRAME : SPEED_PX_PER_FRAME;
+      const tick = () => {
+        readerWrap.scrollTop += step;
+        rafId = requestAnimationFrame(tick);
+      };
+      const start = () => { if (rafId === null) rafId = requestAnimationFrame(tick); };
+      const stop  = () => { if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; } };
+      btn.addEventListener('mouseenter', start);
+      btn.addEventListener('mouseleave', stop);
+      // Also stop if the window loses focus while hovering
+      window.addEventListener('blur', stop);
+    }
+    bind(document.getElementById('scroll-up-btn'), 'up');
+    bind(document.getElementById('scroll-down-btn'), 'down');
   })();
 
   // ── Service Worker (PWA offline support) ──────────────────────────────
