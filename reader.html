@@ -1551,7 +1551,7 @@
     const META_KEY  = 'sync:meta';   // { lastPulledAt, lastPushedAt }
     const MODE_KEY  = 'sync:mode';   // 'auto' | 'manual'
     const FILE_NAME = 'reader-progress.json';
-    const PUSH_DEBOUNCE_MS = 2000;
+    const PUSH_DEBOUNCE_MS = 30000; // 30s — avoids GitHub secondary rate limits
 
     // In-memory snapshot of the remote as of the last pull.
     // Used to populate the "↗ 去最新 · 第N章" button without extra API calls.
