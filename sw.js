@@ -1,6 +1,9 @@
-const CACHE = 'novel-reader-v9';
+const CACHE = 'novel-reader-v10';
 // Paths are relative to the sw.js file's scope (works on GitHub Pages subpaths)
-const ASSETS = ['./', './reader.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const ASSETS = [
+  './', './reader.html', './manifest.json', './icon-192.png', './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

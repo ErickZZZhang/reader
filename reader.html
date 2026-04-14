@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="阅读器">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#282a36">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
   :root {
     --bg: #1a1a1a;
@@ -687,7 +688,7 @@
   <div class="sep"></div>
 
   <label class="tb-btn" for="file-input">📂 打开文件</label>
-  <input type="file" id="file-input" accept=".txt">
+  <input type="file" id="file-input" accept=".txt,.epub">
   <button class="tb-btn" id="library-btn">📚 书库</button>
   <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
@@ -752,7 +753,7 @@
       <div id="empty-state">
         <div class="icon">📚</div>
         <h2>欢迎使用小说阅读器</h2>
-        <p>点击左上角「打开文件」加载 .txt 格式的小说<br>支持自动识别章节、深色/护眼模式、字号调整</p>
+        <p>点击左上角「打开文件」加载 .txt 或 .epub 格式的小说<br>支持自动识别章节、深色/护眼模式、字号调整</p>
       </div>
       <div id="chapter-title" style="display:none"></div>
       <div id="content"></div>
@@ -829,7 +830,7 @@
       <button id="library-close">✕</button>
     </div>
     <div id="library-grid">
-      <div id="library-empty">书库为空<br>打开 .txt 文件后会自动加入书库</div>
+      <div id="library-empty">书库为空<br>打开 .txt 或 .epub 文件后会自动加入书库</div>
     </div>
   </div>
 </div>
@@ -879,52 +880,131 @@
   const statusLeft = document.getElementById('status-left');
   const statusRight = document.getElementById('status-right');
 
-  // File loading
-  document.getElementById('file-input').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const text = ev.target.result;
-      parseNovel(file.name, text);
-    };
-    reader.readAsText(file, 'UTF-8');
-  });
+  // ── EPUB parser ──────────────────────────────────────────────────────
+  // Extracts chapters from an EPUB (ZIP of XHTML) via JSZip.
+  // Returns [{title, content}, ...] — same shape as the .txt chapter array.
+  async function parseEpub(file) {
+    const zip = await JSZip.loadAsync(file);
 
-  function parseNovel(name, text) {
-    // Detect chapter headings: 第X章, 第X节, Chapter X, 序章, 尾声, etc.
-    const chapterRe = /^[\s\u3000]*(第[零一二三四五六七八九十百千万\d]+[章节卷回集][\s\S]*?|Chapter\s*\d+[\s\S]*?|序章|尾声|楔子|番外[\s\S]*?|前言|后记)$/m;
-    const lines = text.split('\n');
-    const found = [];
+    // 1. Find the OPF path from META-INF/container.xml
+    const containerXml = await zip.file('META-INF/container.xml').async('string');
+    const containerDoc = new DOMParser().parseFromString(containerXml, 'application/xml');
+    const opfPath = containerDoc.querySelector('rootfile').getAttribute('full-path');
+    const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
 
-    lines.forEach((line, i) => {
-      const trimmed = line.trim();
-      if (trimmed && chapterRe.test(trimmed) && trimmed.length < 60) {
-        found.push({ title: trimmed, startLine: i });
-      }
+    // 2. Parse OPF: manifest (id→href) + spine (reading order)
+    const opfXml = await zip.file(opfPath).async('string');
+    const opfDoc = new DOMParser().parseFromString(opfXml, 'application/xml');
+    const manifest = {};
+    opfDoc.querySelectorAll('manifest item').forEach(item => {
+      manifest[item.getAttribute('id')] = item.getAttribute('href');
+    });
+    const spineHrefs = [];
+    opfDoc.querySelectorAll('spine itemref').forEach(ref => {
+      const id = ref.getAttribute('idref');
+      if (manifest[id]) spineHrefs.push(opfDir + manifest[id]);
     });
 
-    if (found.length < 2) {
-      // Fallback: split every ~500 lines
-      chapters = [];
-      const chunkSize = 300;
-      for (let i = 0; i < lines.length; i += chunkSize) {
-        chapters.push({
-          title: `第 ${Math.floor(i/chunkSize)+1} 段`,
-          content: lines.slice(i, i + chunkSize).join('\n')
+    // 3. Try to extract TOC titles from toc.ncx (EPUB2) for better chapter names
+    const tocTitles = {};
+    const ncxId = [...opfDoc.querySelectorAll('manifest item')]
+      .find(i => i.getAttribute('media-type') === 'application/x-dtbncx+xml')?.getAttribute('id');
+    if (ncxId && manifest[ncxId]) {
+      try {
+        const ncxXml = await zip.file(opfDir + manifest[ncxId]).async('string');
+        const ncxDoc = new DOMParser().parseFromString(ncxXml, 'application/xml');
+        ncxDoc.querySelectorAll('navPoint').forEach(np => {
+          const src = np.querySelector('content')?.getAttribute('src')?.split('#')[0];
+          const label = np.querySelector('navLabel text')?.textContent?.trim();
+          if (src && label) tocTitles[opfDir + src] = label;
         });
-      }
-    } else {
-      chapters = found.map((ch, idx) => {
-        const end = found[idx+1] ? found[idx+1].startLine : lines.length;
-        const content = lines.slice(ch.startLine + 1, end).join('\n').trim();
-        return { title: ch.title, content };
-      });
+      } catch (e) { /* toc parse failure is non-fatal */ }
     }
 
-    document.title = name.replace('.txt','') + ' - 小说阅读器';
+    // 4. Extract text from each spine XHTML file
+    const result = [];
+    for (const href of spineHrefs) {
+      const entry = zip.file(href);
+      if (!entry) continue;
+      const xhtml = await entry.async('string');
+      const doc = new DOMParser().parseFromString(xhtml, 'application/xhtml+xml');
+      doc.querySelectorAll('script, style').forEach(el => el.remove());
+      const body = doc.body || doc.documentElement;
+      const text = body ? body.textContent.trim() : '';
+      if (!text || text.length < 10) continue; // skip empty/cover pages
+
+      // Title priority: toc.ncx label > h1/h2/h3 inside the file > filename
+      const title = tocTitles[href]
+        || doc.querySelector('h1, h2, h3')?.textContent?.trim()
+        || href.split('/').pop().replace(/\.\w+$/, '');
+      result.push({ title, content: text });
+    }
+    return result;
+  }
+
+  // File loading — supports .txt and .epub
+  document.getElementById('file-input').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.name.toLowerCase().endsWith('.epub')) {
+      try {
+        statusLeft.textContent = '正在解析 EPUB…';
+        const epubChapters = await parseEpub(file);
+        if (!epubChapters.length) { statusLeft.textContent = 'EPUB 中未找到有效章节'; return; }
+        // Build plain-text version for IndexedDB (used when reopening from library)
+        const extractedText = epubChapters.map(ch => ch.title + '\n' + ch.content).join('\n\n');
+        parseNovel(file.name, extractedText, epubChapters);
+      } catch (err) {
+        statusLeft.textContent = 'EPUB 解析失败: ' + err.message;
+        console.error('EPUB parse error:', err);
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = ev => parseNovel(file.name, ev.target.result);
+      reader.readAsText(file, 'UTF-8');
+    }
+  });
+
+  function parseNovel(name, text, preChapters) {
+    if (preChapters && preChapters.length) {
+      // EPUB (or other pre-parsed source): chapters already split
+      chapters = preChapters;
+    } else {
+      // .txt: detect chapter headings: 第X章, 第X节, Chapter X, 序章, 尾声, etc.
+      const chapterRe = /^[\s\u3000]*(第[零一二三四五六七八九十百千万\d]+[章节卷回集][\s\S]*?|Chapter\s*\d+[\s\S]*?|序章|尾声|楔子|番外[\s\S]*?|前言|后记)$/m;
+      const lines = text.split('\n');
+      const found = [];
+
+      lines.forEach((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed && chapterRe.test(trimmed) && trimmed.length < 60) {
+          found.push({ title: trimmed, startLine: i });
+        }
+      });
+
+      if (found.length < 2) {
+        // Fallback: split every ~300 lines
+        chapters = [];
+        const chunkSize = 300;
+        for (let i = 0; i < lines.length; i += chunkSize) {
+          chapters.push({
+            title: `第 ${Math.floor(i/chunkSize)+1} 段`,
+            content: lines.slice(i, i + chunkSize).join('\n')
+          });
+        }
+      } else {
+        chapters = found.map((ch, idx) => {
+          const end = found[idx+1] ? found[idx+1].startLine : lines.length;
+          const content = lines.slice(ch.startLine + 1, end).join('\n').trim();
+          return { title: ch.title, content };
+        });
+      }
+    }
+
+    document.title = name.replace(/\.(txt|epub)$/i, '') + ' - 小说阅读器';
     currentBookKey = bookKey(name);
-    dbSaveBook(name, text);
+    dbSaveBook(name, text, preChapters || null);
     buildSidebar(name);
 
     const saved = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
@@ -934,7 +1014,7 @@
     emptyState.style.display = 'none';
     chapterNav.style.display = 'flex';
     chapterTitle.style.display = 'block';
-    statusLeft.textContent = name.replace('.txt','');
+    statusLeft.textContent = name.replace(/\.(txt|epub)$/i, '');
     if (saved.chapter > 0) statusLeft.textContent += ' · 已恢复上次阅读位置';
   }
 
@@ -1172,11 +1252,13 @@
       req.onerror = e => reject(e.target.error);
     });
   }
-  async function dbSaveBook(name, content) {
+  async function dbSaveBook(name, content, preChapters) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
+      const entry = { name, content };
+      if (preChapters) entry.chapters = preChapters; // EPUB: store pre-split chapters
       const tx = db.transaction('books', 'readwrite');
-      tx.objectStore('books').put({ name, content });
+      tx.objectStore('books').put(entry);
       tx.oncomplete = resolve;
       tx.onerror = e => reject(e.target.error);
     });
@@ -1243,7 +1325,7 @@
       const total = p.totalChapters || 0;
       const cur = (p.chapter != null ? p.chapter + 1 : 1);
       const pct = total ? Math.round(cur / total * 100) : 0;
-      const title = name.replace(/\.txt$/i, '');
+      const title = name.replace(/\.(txt|epub)$/i, '');
 
       const card = document.createElement('div');
       card.className = 'book-card';
@@ -1264,7 +1346,7 @@
       };
       card.onclick = async () => {
         const book = await dbGetBook(name);
-        if (book) { closeLibrary(); parseNovel(book.name, book.content); }
+        if (book) { closeLibrary(); parseNovel(book.name, book.content, book.chapters || null); }
       };
       grid.appendChild(card);
     });
