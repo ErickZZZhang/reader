@@ -961,8 +961,20 @@
       }
     } else {
       const reader = new FileReader();
-      reader.onload = ev => parseNovel(file.name, ev.target.result);
-      reader.readAsText(file, 'UTF-8');
+      reader.onload = ev => {
+        const buf = ev.target.result;
+        // Try UTF-8 first (strict); fall back to GB18030 for legacy Chinese .txt files
+        let text;
+        try {
+          text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+        } catch {
+          text = new TextDecoder('gb18030').decode(buf);
+        }
+        // Strip UTF-8 BOM if present
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        parseNovel(file.name, text);
+      };
+      reader.readAsArrayBuffer(file);
     }
   });
 
