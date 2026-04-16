@@ -651,7 +651,7 @@
     border-radius: 2px;
     flex-shrink: 0;
   }
-  .cloud-row-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .cloud-row-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; }
   .cloud-row-pct {
     font-size: 11px;
     color: var(--text-dim);
@@ -1920,7 +1920,7 @@
         row.innerHTML =
           `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
           `<span class="cloud-row-title">${book.title}</span>` +
-          `<span class="cloud-row-bar"><span class="cloud-row-bar-fill" style="width:${hasProgress ? pct : 0}%"></span></span>` +
+          `<span class="cloud-row-bar"><span class="cloud-row-bar-fill" style="width:${hasProgress ? pct : 0}%;background:hsl(${hasProgress ? pct * 1.2 : 0},70%,45%)"></span></span>` +
           `<span class="cloud-row-pct">${hasProgress ? pct + '%' : ''}</span>` +
           `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
           `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
