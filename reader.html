@@ -884,7 +884,6 @@
 
   <label class="tb-btn" for="file-input">📂 打开文件</label>
   <input type="file" id="file-input" accept=".txt,.epub">
-  <button class="tb-btn" id="library-btn">📚 书库</button>
   <button class="tb-btn" id="cloud-btn">☁ 云书库</button>
   <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
@@ -1036,6 +1035,7 @@
     <div id="cloud-header">
       <span class="cloud-title">☁ 云书库</span>
       <span class="cloud-count" id="cloud-count"></span>
+      <button id="cloud-local-btn" title="本地书库" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📚 本地</button>
       <button id="cloud-config-toggle" title="设置">⚙ 设置</button>
       <button id="cloud-close">✕</button>
     </div>
@@ -1661,7 +1661,7 @@
     });
   }
 
-  document.getElementById('library-btn').onclick = openLibrary;
+  document.getElementById('cloud-local-btn').onclick = () => { Cloud.close(); openLibrary(); };
   document.getElementById('library-close').onclick = closeLibrary;
   document.getElementById('library-overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('library-overlay')) closeLibrary();
