@@ -585,8 +585,19 @@
     gap: 10px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
-    transition: background 0.12s;
     position: relative;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .cloud-row::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: var(--prog, 0%);
+    background: var(--prog-color, transparent);
+    opacity: 0.18;
+    z-index: -1;
+    transition: width 0.3s;
   }
   .cloud-row:hover { background: var(--surface2); }
   .cloud-row-type {
@@ -611,14 +622,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .cloud-row-bar {
-    width: 60px;
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-  .cloud-row-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; }
   .cloud-row-pct {
     font-size: 11px;
     color: var(--text-dim);
@@ -832,7 +835,6 @@
     #cloud-toolbar { padding: 8px 12px; }
     .cloud-row { padding: 7px 12px; gap: 8px; }
     .cloud-row-chapter, .cloud-row-date, .cloud-row-size { display: none; }
-    .cloud-row-bar { width: 40px; }
     #sync-modal .body { padding: 14px; }
     #sync-modal input { padding: 10px; font-size: 14px; }
     #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
@@ -1864,10 +1866,13 @@
 
         const row = document.createElement('div');
         row.className = 'cloud-row';
+        if (hasProgress) {
+          row.style.setProperty('--prog', pct + '%');
+          row.style.setProperty('--prog-color', `hsl(${pct * 1.2},70%,45%)`);
+        }
         row.innerHTML =
           `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
           `<span class="cloud-row-title">${book.title}</span>` +
-          `<span class="cloud-row-bar"><span class="cloud-row-bar-fill" style="width:${hasProgress ? pct : 0}%;background:hsl(${hasProgress ? pct * 1.2 : 0},70%,45%)"></span></span>` +
           `<span class="cloud-row-pct">${hasProgress ? pct + '%' : ''}</span>` +
           `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
           `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
