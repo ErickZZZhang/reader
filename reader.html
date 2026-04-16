@@ -310,6 +310,10 @@
     word-break: break-all;
   }
   #content p { margin-bottom: 1em; text-indent: 2em; }
+  #content .inline-img { text-align: center; margin: 1.2em 0; text-indent: 0; }
+  #content .inline-img img { max-width: 100%; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
+  #content .inline-img img.loading { opacity: 0.3; }
+  #content .inline-img .img-error { font-size: 12px; color: var(--text-dim); }
 
   /* Empty state */
   #empty-state {
@@ -1043,16 +1047,24 @@
     });
   }
 
+  // Detect if a line is an image URL and render accordingly
+  const IMG_URL_RE = /^https?:\/\/\S+\.(webp|jpg|jpeg|png|gif|bmp|svg)(\?\S*)?$/i;
+  function renderLine(line) {
+    const t = line.trim();
+    if (IMG_URL_RE.test(t)) {
+      return `<div class="inline-img"><img src="${t}" loading="lazy" alt="插图" onload="this.classList.remove('loading')" onerror="this.style.display='none';this.nextElementSibling.style.display=''"><span class="img-error" style="display:none">图片加载失败</span></div>`;
+    }
+    return `<p>${t}</p>`;
+  }
+
   function loadChapter(idx, scrollTo = 0) {
     if (idx < 0 || idx >= chapters.length) return;
     currentChapter = idx;
 
     chapterTitle.textContent = chapters[idx].title;
     const raw = chapters[idx].content;
-    // Render paragraphs
-    contentEl.innerHTML = raw.split(/\n+/).filter(l => l.trim()).map(p =>
-      `<p>${p.trim()}</p>`
-    ).join('');
+    // Render paragraphs — image URLs become inline images
+    contentEl.innerHTML = raw.split(/\n+/).filter(l => l.trim()).map(renderLine).join('');
 
     readerWrap.scrollTop = scrollTo;
     saveProgress();
@@ -1485,7 +1497,7 @@
 
     chapterTitle.textContent = title;
     chapterTitle.style.display = 'block';
-    contentEl.innerHTML = text.split(/\n+/).filter(l => l.trim()).map(p => `<p>${p}</p>`).join('');
+    contentEl.innerHTML = text.split(/\n+/).filter(l => l.trim()).map(renderLine).join('');
     contentEl.style.fontSize = fontSize + 'px';
     readerWrap.scrollTop = 0;
     emptyState.style.display = 'none';
