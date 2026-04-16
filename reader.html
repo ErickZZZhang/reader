@@ -376,39 +376,6 @@
   #chapter-list::-webkit-scrollbar { width: 4px; }
   #chapter-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
 
-  /* Web mode URL bar */
-  #url-bar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 6px 16px;
-    display: none;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  #url-bar.visible { display: flex; }
-  #url-input {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: monospace;
-    min-width: 0;
-  }
-  #url-input:focus { outline: none; border-color: var(--accent); }
-  #url-input::placeholder { color: var(--text-dim); }
-  #proxy-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--text-dim);
-    flex-shrink: 0;
-    cursor: help;
-  }
-  #proxy-dot.ok  { background: #6abf69; }
-  #proxy-dot.err { background: #e74c3c; }
-
   /* Library Modal */
   #library-overlay {
     position: fixed;
@@ -859,10 +826,6 @@
       padding-right:  calc(10px + env(safe-area-inset-right));
     }
 
-    /* URL bar */
-    #url-bar { padding: 6px 10px; }
-    #url-input { font-size: 13px; padding: 8px 10px; }
-
     /* Modals: roomier on mobile */
     #library-modal, #sync-modal, #cloud-modal { width: 96vw; max-height: 90vh; }
     #library-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
@@ -883,7 +846,6 @@
   <div class="sep"></div>
 
   <button class="tb-btn" id="cloud-btn">☁ 云书库</button>
-  <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
   <button class="tb-btn" id="goto-latest-btn" title="拉取最新进度并跳转" style="display:none">↗ 去最新</button>
 
@@ -919,12 +881,6 @@
 
 <div id="progress-bar"><div id="progress-fill"></div></div>
 
-<div id="url-bar">
-  <div id="proxy-dot" title="代理未检测"></div>
-  <input type="text" id="url-input" placeholder="粘贴小说章节网址，按 Enter 加载…">
-  <button class="tb-btn" id="url-load-btn">加载</button>
-  <button class="tb-btn" id="url-bar-close">✕ 退出网页模式</button>
-</div>
 
 <div id="sidebar-backdrop"></div>
 
@@ -1373,12 +1329,8 @@
     try { Sync.refreshGotoLatestBtn(); } catch(e) {}
   }
 
-  document.getElementById('prev-btn').onclick = () => {
-    if (webMode) loadWebChapter(webPrevUrl); else loadChapter(currentChapter - 1);
-  };
-  document.getElementById('next-btn').onclick = () => {
-    if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
-  };
+  document.getElementById('prev-btn').onclick = () => loadChapter(currentChapter - 1);
+  document.getElementById('next-btn').onclick = () => loadChapter(currentChapter + 1);
 
   // Chapter search / jump — scrolls the list to the matching chapter without hiding others
   const chapterSearchInput = document.getElementById('chapter-search-input');
@@ -1413,13 +1365,8 @@
   // Keyboard navigation
   document.addEventListener('keydown', e => {
     if (document.activeElement === chapterSearchInput) return;
-    if (document.activeElement === document.getElementById('url-input')) return;
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-      if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
-    }
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-      if (webMode) loadWebChapter(webPrevUrl); else loadChapter(currentChapter - 1);
-    }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') loadChapter(currentChapter + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') loadChapter(currentChapter - 1);
   });
 
   // Sidebar toggle — on mobile uses .mobile-open drawer with backdrop;
@@ -1986,161 +1933,6 @@
 
   function closeCloud() { Cloud.close(); }
 
-  // ── Web Mode ───────────────────────────────────────────────────────────
-  // Auto-detect proxy: when served by proxy.py the origin IS the proxy
-  const PROXY = (location.origin && location.origin !== 'null')
-    ? location.origin
-    : 'http://localhost:7890';
-  let webMode = false;
-  let webNextUrl = '';
-  let webPrevUrl = '';
-  let webHistory = [];
-
-  // Selectors used by most Chinese novel sites, tried in order
-  const CONTENT_SELECTORS = [
-    '#content', '#chaptercontent', '#chapter-content',
-    '#BookText', '#booktext', '#nr1', '#readcontent',
-    '.read-content', '.chapter-content', '.book-content',
-    '#chapterContent', '.chapterContent', '#novelcontent',
-    '.novel-content', '#maintext', '#article', 'article',
-  ];
-
-  async function checkProxy() {
-    const dot = document.getElementById('proxy-dot');
-    try {
-      const r = await fetch(`${PROXY}/ping`, { signal: AbortSignal.timeout(1500) });
-      if (r.ok) { dot.className = 'ok'; dot.title = '代理运行中 ✓'; return true; }
-    } catch {}
-    dot.className = 'err';
-    dot.title = '代理未启动 — 请先运行 proxy.py';
-    return false;
-  }
-
-  function enterWebMode() {
-    webMode = true;
-    document.getElementById('url-bar').classList.add('visible');
-    document.getElementById('web-mode-btn').classList.add('active');
-    document.getElementById('url-input').focus();
-    checkProxy();
-  }
-
-  function exitWebMode() {
-    webMode = false;
-    webHistory = [];
-    webNextUrl = webPrevUrl = '';
-    document.getElementById('url-bar').classList.remove('visible');
-    document.getElementById('web-mode-btn').classList.remove('active');
-    // Restore file-mode sidebar if a book is loaded
-    if (chapters.length) buildSidebar('');
-  }
-
-  async function loadWebChapter(url) {
-    if (!url) return;
-    url = url.trim();
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    document.getElementById('url-input').value = url;
-    statusLeft.textContent = '加载中…';
-
-    let html, finalUrl;
-    try {
-      const resp = await fetch(`${PROXY}?url=${encodeURIComponent(url)}`);
-      if (!resp.ok) throw new Error(`代理返回 HTTP ${resp.status}`);
-      finalUrl = resp.headers.get('X-Final-Url') || url;
-      html = await resp.text();
-    } catch (e) {
-      statusLeft.textContent = `加载失败: ${e.message}`;
-      if (!await checkProxy()) statusLeft.textContent += ' — proxy.py 未运行';
-      return;
-    }
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-
-    // --- Extract main content ---
-    let contentNode = null;
-    for (const sel of CONTENT_SELECTORS) {
-      const el = doc.querySelector(sel);
-      if (el && el.textContent.trim().length > 200) { contentNode = el; break; }
-    }
-    // Fallback: div/article with the most text that isn't the whole body
-    if (!contentNode) {
-      const bodyLen = doc.body ? doc.body.textContent.length : 1;
-      let best = 0;
-      doc.querySelectorAll('div, article, section').forEach(el => {
-        const len = el.textContent.trim().length;
-        if (len > best && len > 300 && len / bodyLen < 0.92) { best = len; contentNode = el; }
-      });
-    }
-    if (!contentNode) {
-      statusLeft.textContent = '未能提取正文，请换一个网址或等等再试';
-      return;
-    }
-
-    // --- Extract title ---
-    const title =
-      doc.querySelector('h1')?.textContent.trim() ||
-      doc.querySelector('.chapter-title, .title, .bookname')?.textContent.trim() ||
-      doc.title.split(/[-_\|]/)[0].trim() || '未知章节';
-
-    // --- Extract next / prev links ---
-    const resolveHref = a => {
-      const href = a?.getAttribute('href');
-      if (!href || /^javascript|^#/.test(href)) return '';
-      try { return new URL(href, finalUrl).href; } catch { return ''; }
-    };
-    const allLinks = [...doc.querySelectorAll('a')];
-    webNextUrl = resolveHref(allLinks.find(a => /下一[章页]|下页/.test(a.textContent)));
-    webPrevUrl = resolveHref(allLinks.find(a => /上一[章页]|上页/.test(a.textContent)));
-
-    // --- Clean and render content ---
-    const clone = contentNode.cloneNode(true);
-    clone.querySelectorAll('script,style,.ad,.ads,#ad,[class*="ad"],[id*="ad"]').forEach(e => e.remove());
-    clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-    const text = clone.textContent.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-
-    chapterTitle.textContent = title;
-    chapterTitle.style.display = 'block';
-    contentEl.innerHTML = text.split(/\n+/).filter(l => l.trim()).map(renderLine).join('');
-    contentEl.style.fontSize = fontSize + 'px';
-    readerWrap.scrollTop = 0;
-    emptyState.style.display = 'none';
-    chapterNav.style.display = 'flex';
-
-    document.getElementById('prev-btn').disabled = !webPrevUrl;
-    document.getElementById('next-btn').disabled = !webNextUrl;
-
-    // --- Update web history sidebar ---
-    webHistory = webHistory.filter(h => h.url !== finalUrl);
-    webHistory.unshift({ title, url: finalUrl });
-    buildWebSidebar();
-
-    document.getElementById('url-input').value = finalUrl;
-    document.title = title + ' - 小说阅读器';
-    statusLeft.textContent = new URL(finalUrl).hostname;
-  }
-
-  function buildWebSidebar() {
-    chapterList.innerHTML = '';
-    document.getElementById('sidebar-title').textContent = '浏览历史';
-    document.getElementById('chapter-count').textContent = webHistory.length + '页';
-    webHistory.forEach((h, i) => {
-      const item = document.createElement('div');
-      item.className = 'chapter-item' + (i === 0 ? ' active' : '');
-      item.textContent = h.title;
-      item.title = h.url;
-      item.onclick = () => loadWebChapter(h.url);
-      chapterList.appendChild(item);
-    });
-    document.getElementById('sidebar').classList.remove('collapsed');
-  }
-
-  document.getElementById('web-mode-btn').onclick = () => webMode ? exitWebMode() : enterWebMode();
-  document.getElementById('url-bar-close').onclick = exitWebMode;
-  document.getElementById('url-load-btn').onclick = () => loadWebChapter(document.getElementById('url-input').value);
-  document.getElementById('url-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') loadWebChapter(document.getElementById('url-input').value);
-  });
-
   // Scroll progress (within chapter) + autosave
   let scrollSaveTimer = null;
   readerWrap.addEventListener('scroll', () => {
@@ -2165,7 +1957,7 @@
     if (bottomScrollCount >= BOTTOM_SCROLLS_NEEDED && currentChapter < chapters.length - 1) {
       bottomScrollCount = 0;
       autoChapterCooldown = true;
-      if (webMode) loadWebChapter(webNextUrl); else loadChapter(currentChapter + 1);
+      loadChapter(currentChapter + 1);
       setTimeout(() => { autoChapterCooldown = false; }, 800);
     }
   });
