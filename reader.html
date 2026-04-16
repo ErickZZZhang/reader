@@ -1466,8 +1466,7 @@
   const fontSelect = document.getElementById('font-select');
   function setFontFamily(family) {
     fontFamily = family;
-    contentEl.style.fontFamily = family;
-    chapterTitle.style.fontFamily = family;
+    document.body.style.fontFamily = family;
     fontSelect.value = family;
   }
   fontSelect.addEventListener('change', () => { setFontFamily(fontSelect.value); savePrefs(); });
