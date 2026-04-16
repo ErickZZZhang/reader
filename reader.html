@@ -314,6 +314,13 @@
   #content .inline-img img { max-width: 100%; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
   #content .inline-img img.loading { opacity: 0.3; }
   #content .inline-img .img-error { font-size: 12px; color: var(--text-dim); }
+  #content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+    border-radius: 4px;
+  }
 
   /* Empty state */
   #empty-state {
@@ -496,6 +503,100 @@
   }
   .book-card-del:hover { background: #c0392b; color: #fff; }
 
+  /* Cloud Library Modal */
+  #cloud-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 102;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #cloud-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: min(820px, 92vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #cloud-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #cloud-header span { font-size: 15px; font-weight: bold; color: var(--accent); }
+  #cloud-close {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 4px;
+  }
+  #cloud-close:hover { background: var(--surface2); color: var(--text); }
+  #cloud-config {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  #cloud-config label { display: block; color: var(--text-dim); margin: 6px 0 3px; }
+  #cloud-config input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+  #cloud-config input:focus { outline: none; border-color: var(--accent); }
+  #cloud-config .cloud-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+  #cloud-config .cloud-hint { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
+  #cloud-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  #cloud-grid::-webkit-scrollbar { width: 6px; }
+  #cloud-grid::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  #cloud-empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .cloud-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 14px 10px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .cloud-card:hover { border-color: var(--accent); }
+  .cloud-card-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text);
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cloud-card-size { font-size: 11px; color: var(--text-dim); }
+  .cloud-card.downloading { opacity: 0.6; pointer-events: none; }
+  .cloud-card.downloading .cloud-card-title::after { content: ' ⏳'; }
+
   /* Reading position memory indicator */
   #status-bar {
     background: var(--surface);
@@ -677,8 +778,8 @@
     #url-input { font-size: 13px; padding: 8px 10px; }
 
     /* Modals: roomier on mobile */
-    #library-modal, #sync-modal { width: 94vw; max-height: 88vh; }
-    #library-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 12px; }
+    #library-modal, #sync-modal, #cloud-modal { width: 94vw; max-height: 88vh; }
+    #library-grid, #cloud-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 12px; }
     #sync-modal .body { padding: 14px; }
     #sync-modal input { padding: 10px; font-size: 14px; }
     #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
@@ -694,6 +795,7 @@
   <label class="tb-btn" for="file-input">📂 打开文件</label>
   <input type="file" id="file-input" accept=".txt,.epub">
   <button class="tb-btn" id="library-btn">📚 书库</button>
+  <button class="tb-btn" id="cloud-btn">☁ 云书库</button>
   <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
   <button class="tb-btn" id="goto-latest-btn" title="拉取最新进度并跳转" style="display:none">↗ 去最新</button>
@@ -839,6 +941,29 @@
   </div>
 </div>
 
+<div id="cloud-overlay" style="display:none">
+  <div id="cloud-modal">
+    <div id="cloud-header">
+      <span>☁ 云书库</span>
+      <button id="cloud-close">✕</button>
+    </div>
+    <div id="cloud-config">
+      <label for="cloud-repo">GitHub 仓库（owner/repo）</label>
+      <input type="text" id="cloud-repo" placeholder="ErickZZZhang/my-books">
+      <label for="cloud-token">Personal Access Token（scope: <code style="color:var(--accent)">repo</code> 或 fine-grained <code style="color:var(--accent)">contents:read</code>）</label>
+      <input type="password" id="cloud-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <div class="cloud-actions">
+        <button class="tb-btn" id="cloud-save-btn">保存</button>
+        <button class="tb-btn" id="cloud-refresh-btn">刷新列表</button>
+        <span class="cloud-hint" id="cloud-status"></span>
+      </div>
+    </div>
+    <div id="cloud-grid">
+      <div id="cloud-empty">请先配置仓库和 Token，然后点击「刷新列表」</div>
+    </div>
+  </div>
+</div>
+
 <script>
   let chapters = [];
   let currentChapter = 0;
@@ -886,8 +1011,16 @@
 
   // ── EPUB parser ──────────────────────────────────────────────────────
   // Extracts chapters from an EPUB (ZIP of XHTML) via JSZip.
-  // Returns [{title, content}, ...] — same shape as the .txt chapter array.
+  // Returns [{title, content, html?}, ...] — html flag means content is HTML with images.
+  // Also stores extracted blob URLs in epubBlobUrls for cleanup.
+  let epubBlobUrls = [];
+  function cleanupEpubBlobs() {
+    epubBlobUrls.forEach(u => URL.revokeObjectURL(u));
+    epubBlobUrls = [];
+  }
+
   async function parseEpub(file) {
+    cleanupEpubBlobs();
     const zip = await JSZip.loadAsync(file);
 
     // 1. Find the OPF path from META-INF/container.xml
@@ -925,23 +1058,69 @@
       } catch (e) { /* toc parse failure is non-fatal */ }
     }
 
-    // 4. Extract text from each spine XHTML file
+    // 4. Build image blob URL map — extract all images from the ZIP once
+    const imgMap = {}; // zip path → blob URL
+    for (const [path, entry] of Object.entries(zip.files)) {
+      if (entry.dir) continue;
+      const lower = path.toLowerCase();
+      if (/\.(jpe?g|png|gif|webp|svg|bmp)$/.test(lower)) {
+        const mime = lower.endsWith('.svg') ? 'image/svg+xml'
+          : lower.endsWith('.png') ? 'image/png'
+          : lower.endsWith('.gif') ? 'image/gif'
+          : lower.endsWith('.webp') ? 'image/webp'
+          : 'image/jpeg';
+        const blob = await entry.async('blob');
+        const url = URL.createObjectURL(new Blob([blob], { type: mime }));
+        imgMap[path] = url;
+        epubBlobUrls.push(url);
+      }
+    }
+
+    // 5. Extract content from each spine XHTML file
     const result = [];
     for (const href of spineHrefs) {
       const entry = zip.file(href);
       if (!entry) continue;
       const xhtml = await entry.async('string');
       const doc = new DOMParser().parseFromString(xhtml, 'application/xhtml+xml');
-      doc.querySelectorAll('script, style').forEach(el => el.remove());
+      doc.querySelectorAll('script, style, link').forEach(el => el.remove());
       const body = doc.body || doc.documentElement;
-      const text = body ? body.textContent.trim() : '';
-      if (!text || text.length < 10) continue; // skip empty/cover pages
+      if (!body) continue;
+
+      // Resolve image src paths to blob URLs
+      const chapterDir = href.includes('/') ? href.substring(0, href.lastIndexOf('/') + 1) : '';
+      let hasImages = false;
+      body.querySelectorAll('img, image').forEach(img => {
+        const src = img.getAttribute('src') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+        if (!src) return;
+        // Resolve relative path
+        const resolved = src.startsWith('/') ? src.slice(1) : chapterDir + src;
+        // Normalize path (handle ../)
+        const parts = resolved.split('/');
+        const norm = [];
+        for (const p of parts) { if (p === '..') norm.pop(); else if (p !== '.') norm.push(p); }
+        const normPath = norm.join('/');
+        if (imgMap[normPath]) {
+          img.setAttribute('src', imgMap[normPath]);
+          hasImages = true;
+        }
+      });
+
+      const text = body.textContent.trim();
+      if (!text && !hasImages) continue; // skip truly empty pages
+      if (text.length < 10 && !hasImages) continue;
 
       // Title priority: toc.ncx label > h1/h2/h3 inside the file > filename
       const title = tocTitles[href]
         || doc.querySelector('h1, h2, h3')?.textContent?.trim()
         || href.split('/').pop().replace(/\.\w+$/, '');
-      result.push({ title, content: text });
+
+      if (hasImages) {
+        // Keep HTML to preserve images
+        result.push({ title, content: body.innerHTML, html: true });
+      } else {
+        result.push({ title, content: text });
+      }
     }
     return result;
   }
@@ -982,7 +1161,8 @@
     }
   });
 
-  function parseNovel(name, text, preChapters) {
+  function parseNovel(name, text, preChapters, skipSave) {
+    cleanupEpubBlobs(); // free any previous EPUB image blobs
     if (preChapters && preChapters.length) {
       // EPUB (or other pre-parsed source): chapters already split
       chapters = preChapters;
@@ -1020,7 +1200,7 @@
 
     document.title = name.replace(/\.(txt|epub)$/i, '') + ' - 小说阅读器';
     currentBookKey = bookKey(name);
-    dbSaveBook(name, text, preChapters || null);
+    if (!skipSave) dbSaveBook(name, text, preChapters || null);
     buildSidebar(name);
 
     const saved = JSON.parse(localStorage.getItem(currentBookKey) || '{}');
@@ -1062,9 +1242,14 @@
     currentChapter = idx;
 
     chapterTitle.textContent = chapters[idx].title;
-    const raw = chapters[idx].content;
-    // Render paragraphs — image URLs become inline images
-    contentEl.innerHTML = raw.split(/\n+/).filter(l => l.trim()).map(renderLine).join('');
+    const ch = chapters[idx];
+    if (ch.html) {
+      // EPUB chapter with images — render HTML directly
+      contentEl.innerHTML = ch.content;
+    } else {
+      // Plain text — render paragraphs, image URLs become inline images
+      contentEl.innerHTML = ch.content.split(/\n+/).filter(l => l.trim()).map(renderLine).join('');
+    }
 
     readerWrap.scrollTop = scrollTo;
     saveProgress();
@@ -1381,7 +1566,140 @@
   document.getElementById('library-overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('library-overlay')) closeLibrary();
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLibrary(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLibrary(); closeCloud(); } });
+
+  // ── Cloud Library (GitHub Repo) ───────────────────────────────────────
+  const Cloud = (() => {
+    const REPO_KEY  = 'cloud:repo';
+    const TOKEN_KEY = 'cloud:token';
+
+    const overlay  = document.getElementById('cloud-overlay');
+    const repoIn   = document.getElementById('cloud-repo');
+    const tokenIn  = document.getElementById('cloud-token');
+    const grid     = document.getElementById('cloud-grid');
+    const emptyMsg = document.getElementById('cloud-empty');
+    const statusEl = document.getElementById('cloud-status');
+
+    function repo()  { return localStorage.getItem(REPO_KEY) || ''; }
+    function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+    function open() {
+      repoIn.value  = repo();
+      tokenIn.value = token();
+      overlay.style.display = 'flex';
+      if (repo() && token()) refresh();
+    }
+    function close() { overlay.style.display = 'none'; }
+
+    function save() {
+      const r = repoIn.value.trim();
+      const t = tokenIn.value.trim();
+      if (r) localStorage.setItem(REPO_KEY, r);
+      else localStorage.removeItem(REPO_KEY);
+      if (t) localStorage.setItem(TOKEN_KEY, t);
+      else localStorage.removeItem(TOKEN_KEY);
+      statusEl.textContent = '已保存';
+    }
+
+    async function refresh() {
+      const r = repoIn.value.trim() || repo();
+      const t = tokenIn.value.trim() || token();
+      if (!r || !t) { statusEl.textContent = '请填写仓库和 Token'; return; }
+
+      grid.innerHTML = '';
+      grid.appendChild(emptyMsg);
+      emptyMsg.style.display = 'block';
+      emptyMsg.textContent = '加载中…';
+      statusEl.textContent = '';
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!res.ok) {
+          const msg = res.status === 401 ? 'Token 无效或无权限' :
+                      res.status === 404 ? '仓库不存在或无权限' :
+                      `GitHub API 错误 ${res.status}`;
+          emptyMsg.textContent = msg;
+          return;
+        }
+        const files = await res.json();
+        const books = files.filter(f => f.type === 'file' && /\.(txt|epub)$/i.test(f.name));
+
+        if (books.length === 0) { emptyMsg.textContent = '仓库中没有 .txt 或 .epub 文件'; return; }
+        emptyMsg.style.display = 'none';
+
+        books.forEach(file => {
+          const title = file.name.replace(/\.(txt|epub)$/i, '');
+          const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+
+          const card = document.createElement('div');
+          card.className = 'cloud-card';
+          card.innerHTML = `
+            <div class="cloud-card-title">${title}</div>
+            <div class="cloud-card-size">${sizeMB} MB</div>
+          `;
+          card.onclick = () => download(file, card, t);
+          grid.appendChild(card);
+        });
+        statusEl.textContent = `共 ${books.length} 本`;
+      } catch (e) {
+        emptyMsg.textContent = '网络错误: ' + e.message;
+      }
+    }
+
+    async function download(file, card, t) {
+      card.classList.add('downloading');
+      statusEl.textContent = `正在下载《${file.name}》…`;
+      try {
+        // Use the Git blob API for large files; download_url works for <100MB
+        const res = await fetch(file.download_url, {
+          headers: { 'Authorization': `Bearer ${t}` }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        if (/\.epub$/i.test(file.name)) {
+          const blob = await res.blob();
+          const epubChapters = await parseEpub(blob);
+          if (!epubChapters.length) { statusEl.textContent = 'EPUB 中未找到有效章节'; card.classList.remove('downloading'); return; }
+          const extractedText = epubChapters.map(ch => ch.title + '\n' + ch.content).join('\n\n');
+          parseNovel(file.name, extractedText, epubChapters, true);
+        } else {
+          // .txt — detect encoding via BOM or try UTF-8
+          const buf = await res.arrayBuffer();
+          let text;
+          const bytes = new Uint8Array(buf);
+          if (bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF) {
+            text = new TextDecoder('utf-8').decode(buf);
+          } else {
+            text = new TextDecoder('utf-8').decode(buf);
+            // If it looks garbled (lots of replacement chars), try GBK
+            if ((text.match(/\uFFFD/g)||[]).length > text.length * 0.01) {
+              try { text = new TextDecoder('gbk').decode(buf); } catch(e) {}
+            }
+          }
+          parseNovel(file.name, text, null, true);
+        }
+
+        close();
+        statusEl.textContent = '';
+      } catch (e) {
+        statusEl.textContent = '下载失败: ' + e.message;
+        card.classList.remove('downloading');
+      }
+    }
+
+    // Wire up buttons
+    document.getElementById('cloud-btn').onclick = open;
+    document.getElementById('cloud-close').onclick = close;
+    document.getElementById('cloud-save-btn').onclick = () => { save(); refresh(); };
+    document.getElementById('cloud-refresh-btn').onclick = refresh;
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    return { open, close };
+  })();
+
+  function closeCloud() { Cloud.close(); }
 
   // ── Web Mode ───────────────────────────────────────────────────────────
   // Auto-detect proxy: when served by proxy.py the origin IS the proxy
