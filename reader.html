@@ -882,8 +882,6 @@
   <h1>📖 小说阅读器</h1>
   <div class="sep"></div>
 
-  <label class="tb-btn" for="file-input">📂 打开文件</label>
-  <input type="file" id="file-input" accept=".txt,.epub">
   <button class="tb-btn" id="cloud-btn">☁ 云书库</button>
   <button class="tb-btn" id="web-mode-btn">🌐 网页</button>
   <button class="tb-btn" id="sync-btn" title="云同步进度">☁ 同步</button>
@@ -1035,6 +1033,8 @@
     <div id="cloud-header">
       <span class="cloud-title">☁ 云书库</span>
       <span class="cloud-count" id="cloud-count"></span>
+      <label id="cloud-open-btn" for="file-input" title="打开本地文件" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📂 打开文件</label>
+      <input type="file" id="file-input" accept=".txt,.epub" style="display:none">
       <button id="cloud-local-btn" title="本地书库" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📚 本地</button>
       <button id="cloud-config-toggle" title="设置">⚙ 设置</button>
       <button id="cloud-close">✕</button>
@@ -1229,6 +1229,7 @@
   document.getElementById('file-input').addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
+    try { Cloud.close(); } catch(e) {}
 
     if (file.name.toLowerCase().endsWith('.epub')) {
       try {
