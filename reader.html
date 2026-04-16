@@ -598,71 +598,90 @@
     cursor: pointer;
   }
   #cloud-sort:focus { outline: none; border-color: var(--accent); }
-  #cloud-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-    padding: 16px;
+  #cloud-list {
     overflow-y: auto;
     flex: 1;
   }
-  #cloud-grid::-webkit-scrollbar { width: 6px; }
-  #cloud-grid::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  #cloud-list::-webkit-scrollbar { width: 6px; }
+  #cloud-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
   #cloud-empty {
-    grid-column: 1 / -1;
     padding: 60px 20px;
     text-align: center;
     color: var(--text-dim);
     font-size: 13px;
     line-height: 1.8;
   }
-  .cloud-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px 16px 12px;
+  .cloud-row {
+    display: flex;
+    align-items: center;
+    padding: 7px 18px;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
+    transition: background 0.12s;
     position: relative;
-    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
   }
-  .cloud-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-  .cloud-card-type {
-    display: inline-block;
-    font-size: 10px;
+  .cloud-row:hover { background: var(--surface2); }
+  .cloud-row-type {
+    font-size: 9px;
     font-weight: bold;
     text-transform: uppercase;
-    padding: 2px 6px;
+    padding: 2px 5px;
     border-radius: 3px;
-    margin-bottom: 8px;
     letter-spacing: 0.5px;
+    flex-shrink: 0;
+    width: 34px;
+    text-align: center;
   }
-  .cloud-card-type.txt { background: rgba(143,168,118,0.2); color: var(--accent2); }
-  .cloud-card-type.epub { background: rgba(200,149,108,0.2); color: var(--accent); }
-  .cloud-card-title {
-    font-size: 14px;
-    font-weight: bold;
+  .cloud-row-type.txt { background: rgba(143,168,118,0.2); color: var(--accent2); }
+  .cloud-row-type.epub { background: rgba(200,149,108,0.2); color: var(--accent); }
+  .cloud-row-title {
+    font-size: 13px;
     color: var(--text);
-    margin-bottom: 10px;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .cloud-card-meta { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
-  .cloud-card-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 10px; }
-  .cloud-card-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
-  .cloud-card-progress { font-size: 11px; color: var(--text-dim); margin-top: 5px; }
-  .cloud-card.downloading { opacity: 0.6; pointer-events: none; }
-  .cloud-card.downloading::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 8px;
-    background: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 16px);
-    animation: cloud-loading 0.8s linear infinite;
+  .cloud-row-bar {
+    width: 60px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    flex-shrink: 0;
   }
-  @keyframes cloud-loading { to { background-position: 22.6px 0; } }
+  .cloud-row-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .cloud-row-pct {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .cloud-row-chapter {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 80px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .cloud-row-date {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 70px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .cloud-row-size {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 48px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .cloud-row.downloading { opacity: 0.5; pointer-events: none; }
+  .cloud-row.downloading .cloud-row-title::after { content: '  loading…'; color: var(--accent); font-size: 11px; font-weight: normal; }
 
   /* Reading position memory indicator */
   #status-bar {
@@ -846,10 +865,11 @@
 
     /* Modals: roomier on mobile */
     #library-modal, #sync-modal, #cloud-modal { width: 96vw; max-height: 90vh; }
-    #library-grid, #cloud-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
+    #library-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
     #cloud-toolbar { padding: 8px 12px; }
-    .cloud-card { padding: 12px 12px 10px; }
-    .cloud-card-title { font-size: 13px; }
+    .cloud-row { padding: 7px 12px; gap: 8px; }
+    .cloud-row-chapter, .cloud-row-date, .cloud-row-size { display: none; }
+    .cloud-row-bar { width: 40px; }
     #sync-modal .body { padding: 14px; }
     #sync-modal input { padding: 10px; font-size: 14px; }
     #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
@@ -1038,7 +1058,7 @@
         <option value="size">按大小</option>
       </select>
     </div>
-    <div id="cloud-grid">
+    <div id="cloud-list">
       <div id="cloud-empty">请先点击 ⚙ 设置 配置仓库和 Token</div>
     </div>
   </div>
@@ -1648,15 +1668,18 @@
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLibrary(); closeCloud(); } });
 
-  // ── Cloud Library (GitHub Repo) ───────────────────────────────────────
+  // ── Cloud Library (GitHub Repo) + Progress Sync ────────────────────────
   const Cloud = (() => {
-    const REPO_KEY  = 'cloud:repo';
-    const TOKEN_KEY = 'cloud:token';
+    const REPO_KEY     = 'cloud:repo';
+    const TOKEN_KEY    = 'cloud:token';
+    const PROG_SHA_KEY = 'cloud:progressSha';
+    const PROG_FILE    = 'progress.json';
+    const SYNC_DEBOUNCE = 15000; // 15s debounce for pushing progress
 
     const overlay   = document.getElementById('cloud-overlay');
     const repoIn    = document.getElementById('cloud-repo');
     const tokenIn   = document.getElementById('cloud-token');
-    const grid      = document.getElementById('cloud-grid');
+    const list      = document.getElementById('cloud-list');
     const emptyMsg  = document.getElementById('cloud-empty');
     const statusEl  = document.getElementById('cloud-status');
     const countEl   = document.getElementById('cloud-count');
@@ -1664,7 +1687,8 @@
     const searchIn  = document.getElementById('cloud-search');
     const sortSel   = document.getElementById('cloud-sort');
 
-    let allBooks = []; // cached list from last fetch
+    let allBooks = [];
+    let progressSha = localStorage.getItem(PROG_SHA_KEY) || '';
 
     function repo()  { return localStorage.getItem(REPO_KEY) || ''; }
     function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
@@ -1675,10 +1699,9 @@
       tokenIn.value = token();
       overlay.style.display = 'flex';
       searchIn.value = '';
-      // Show config if not yet configured, hide if already set
       configEl.classList.toggle('show', !configured());
       if (configured()) fetchAndRender();
-      else { allBooks = []; renderGrid(); }
+      else { allBooks = []; renderList(); }
     }
     function close() { overlay.style.display = 'none'; }
 
@@ -1696,16 +1719,133 @@
       }
     }
 
-    // Fetch book list from GitHub
+    // ── Progress sync: pull/push progress.json in the books repo ──
+
+    // Collect all book progress from localStorage
+    function collectProgress() {
+      const data = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('novel:')) {
+          try { data[key] = JSON.parse(localStorage.getItem(key)); } catch(e) {}
+        }
+      }
+      return data;
+    }
+
+    // Merge remote progress into localStorage (remote wins if newer)
+    function mergeProgress(remote) {
+      for (const [key, rp] of Object.entries(remote)) {
+        const lp = JSON.parse(localStorage.getItem(key) || '{}');
+        if ((rp.lastRead || 0) > (lp.lastRead || 0)) {
+          localStorage.setItem(key, JSON.stringify(rp));
+        }
+      }
+    }
+
+    async function pullProgress() {
+      const r = repo(), t = token();
+      if (!r || !t) return;
+      try {
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/${PROG_FILE}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (res.status === 404) return; // file doesn't exist yet
+        if (!res.ok) return;
+        const json = await res.json();
+        progressSha = json.sha;
+        localStorage.setItem(PROG_SHA_KEY, progressSha);
+        const remote = JSON.parse(atob(json.content));
+        mergeProgress(remote);
+      } catch(e) { /* silent */ }
+    }
+
+    async function pushProgress() {
+      const r = repo(), t = token();
+      if (!r || !t) return;
+      try {
+        // Pull first to get latest SHA and merge
+        const getRes = await fetch(`https://api.github.com/repos/${r}/contents/${PROG_FILE}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        let remote = {};
+        if (getRes.ok) {
+          const json = await getRes.json();
+          progressSha = json.sha;
+          try { remote = JSON.parse(atob(json.content)); } catch(e) {}
+        } else if (getRes.status === 404) {
+          progressSha = '';
+        } else return;
+
+        // Merge: for each book, keep whichever has the newer lastRead
+        const local = collectProgress();
+        const merged = { ...remote };
+        for (const [key, lp] of Object.entries(local)) {
+          if (!merged[key] || (lp.lastRead || 0) > (merged[key].lastRead || 0)) {
+            merged[key] = lp;
+          }
+        }
+
+        const body = { message: 'sync progress', content: btoa(unescape(encodeURIComponent(JSON.stringify(merged, null, 2)))) };
+        if (progressSha) body.sha = progressSha;
+
+        const putRes = await fetch(`https://api.github.com/repos/${r}/contents/${PROG_FILE}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (putRes.ok) {
+          const result = await putRes.json();
+          progressSha = result.content.sha;
+          localStorage.setItem(PROG_SHA_KEY, progressSha);
+        }
+      } catch(e) { /* silent */ }
+    }
+
+    // Debounced push — hooked into saveProgress
+    let syncTimer = null;
+    function schedulePush() {
+      if (!configured()) return;
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(pushProgress, SYNC_DEBOUNCE);
+    }
+
+    // Hook into saveProgress to trigger cloud sync
+    const origSave = saveProgress;
+    window.saveProgress = saveProgress = function() {
+      origSave.apply(this, arguments);
+      schedulePush();
+    };
+
+    // Push before page unload
+    window.addEventListener('beforeunload', () => {
+      if (!configured() || !syncTimer) return;
+      clearTimeout(syncTimer);
+      const local = collectProgress();
+      const body = { message: 'sync progress', content: btoa(unescape(encodeURIComponent(JSON.stringify(local, null, 2)))) };
+      if (progressSha) body.sha = progressSha;
+      fetch(`https://api.github.com/repos/${repo()}/contents/${PROG_FILE}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        keepalive: true
+      });
+    });
+
+    // ── Fetch book list ──
+
     async function fetchAndRender() {
       const r = repoIn.value.trim() || repo();
       const t = tokenIn.value.trim() || token();
       if (!r || !t) { statusEl.textContent = '请填写仓库和 Token'; return; }
 
       allBooks = [];
-      renderGrid('加载中…');
+      renderList('加载中…');
 
       try {
+        // Pull progress first so cards show up-to-date info
+        await pullProgress();
+
         const res = await fetch(`https://api.github.com/repos/${r}/contents/`, {
           headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
         });
@@ -1713,7 +1853,7 @@
           const msg = res.status === 401 ? 'Token 无效或无权限' :
                       res.status === 404 ? '仓库不存在或无权限' :
                       `GitHub API 错误 ${res.status}`;
-          renderGrid(msg);
+          renderList(msg);
           return;
         }
         const files = await res.json();
@@ -1726,28 +1866,27 @@
             return { ...f, ext, title, progress: p };
           });
 
-        if (allBooks.length === 0) { renderGrid('仓库中没有 .txt 或 .epub 文件'); return; }
-        renderGrid();
+        if (allBooks.length === 0) { renderList('仓库中没有 .txt 或 .epub 文件'); return; }
+        renderList();
       } catch (e) {
-        renderGrid('网络错误: ' + e.message);
+        renderList('网络错误: ' + e.message);
       }
     }
 
-    // Render book grid with search + sort
-    function renderGrid(message) {
-      grid.innerHTML = '';
+    // ── Render compact list ──
+
+    function renderList(message) {
+      list.innerHTML = '';
 
       if (message || allBooks.length === 0) {
-        grid.innerHTML = `<div id="cloud-empty">${message || '请先点击 ⚙ 设置 配置仓库和 Token'}</div>`;
+        list.innerHTML = `<div id="cloud-empty">${message || '请先点击 ⚙ 设置 配置仓库和 Token'}</div>`;
         countEl.textContent = '';
         return;
       }
 
-      // Filter
       const q = searchIn.value.trim().toLowerCase();
       let filtered = q ? allBooks.filter(b => b.title.toLowerCase().includes(q)) : [...allBooks];
 
-      // Sort
       const sort = sortSel.value;
       filtered.sort((a, b) => {
         if (sort === 'lastRead') return (b.progress.lastRead || 0) - (a.progress.lastRead || 0);
@@ -1763,7 +1902,7 @@
       countEl.textContent = q ? `${filtered.length} / ${allBooks.length} 本` : `${allBooks.length} 本`;
 
       if (filtered.length === 0) {
-        grid.innerHTML = '<div id="cloud-empty">没有匹配的书籍</div>';
+        list.innerHTML = '<div id="cloud-empty">没有匹配的书籍</div>';
         return;
       }
 
@@ -1776,26 +1915,23 @@
         const pct = total && cur ? Math.round(cur / total * 100) : 0;
         const hasProgress = total > 0 && cur > 0;
 
-        const card = document.createElement('div');
-        card.className = 'cloud-card';
-
-        let html = `<span class="cloud-card-type ${book.ext}">${book.ext}</span>`;
-        html += `<div class="cloud-card-title">${book.title}</div>`;
-        html += `<div class="cloud-card-meta">${sizeMB} MB</div>`;
-
-        if (hasProgress) {
-          html += `<div class="cloud-card-bar"><div class="cloud-card-bar-fill" style="width:${pct}%"></div></div>`;
-          html += `<div class="cloud-card-progress">第 ${cur} / ${total} 章 · ${pct}%${p.lastRead ? ' · ' + fmtDate(p.lastRead) : ''}</div>`;
-        }
-
-        card.innerHTML = html;
-        card.onclick = () => download(book, card, t);
-        grid.appendChild(card);
+        const row = document.createElement('div');
+        row.className = 'cloud-row';
+        row.innerHTML =
+          `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
+          `<span class="cloud-row-title">${book.title}</span>` +
+          `<span class="cloud-row-bar"><span class="cloud-row-bar-fill" style="width:${hasProgress ? pct : 0}%"></span></span>` +
+          `<span class="cloud-row-pct">${hasProgress ? pct + '%' : ''}</span>` +
+          `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
+          `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
+          `<span class="cloud-row-size">${sizeMB}M</span>`;
+        row.onclick = () => download(book, row, t);
+        list.appendChild(row);
       });
     }
 
-    async function download(file, card, t) {
-      card.classList.add('downloading');
+    async function download(file, row, t) {
+      row.classList.add('downloading');
       const r = repoIn.value.trim() || repo();
       countEl.textContent = `正在打开《${file.title}》…`;
       try {
@@ -1807,7 +1943,7 @@
         if (file.ext === 'epub') {
           const blob = await res.blob();
           const epubChapters = await parseEpub(blob);
-          if (!epubChapters.length) { countEl.textContent = 'EPUB 中未找到有效章节'; card.classList.remove('downloading'); return; }
+          if (!epubChapters.length) { countEl.textContent = 'EPUB 中未找到有效章节'; row.classList.remove('downloading'); return; }
           const extractedText = epubChapters.map(ch => ch.title + '\n' + ch.content).join('\n\n');
           parseNovel(file.name, extractedText, epubChapters, true);
         } else {
@@ -1828,7 +1964,7 @@
         close();
       } catch (e) {
         countEl.textContent = '打开失败: ' + e.message;
-        card.classList.remove('downloading');
+        row.classList.remove('downloading');
       }
     }
 
@@ -1837,9 +1973,12 @@
     document.getElementById('cloud-close').onclick = close;
     document.getElementById('cloud-config-toggle').onclick = () => configEl.classList.toggle('show');
     document.getElementById('cloud-save-btn').onclick = save;
-    searchIn.addEventListener('input', () => renderGrid());
-    sortSel.addEventListener('change', () => renderGrid());
+    searchIn.addEventListener('input', () => renderList());
+    sortSel.addEventListener('change', () => renderList());
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    // Pull progress on page load if configured
+    if (configured()) pullProgress();
 
     return { open, close };
   })();
