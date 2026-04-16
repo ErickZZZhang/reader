@@ -1650,11 +1650,12 @@
 
     async function download(file, card, t) {
       card.classList.add('downloading');
+      const r = repoIn.value.trim() || repo();
       statusEl.textContent = `正在下载《${file.name}》…`;
       try {
-        // Use the Git blob API for large files; download_url works for <100MB
-        const res = await fetch(file.download_url, {
-          headers: { 'Authorization': `Bearer ${t}` }
+        // Use the GitHub API with raw media type (CORS-safe, unlike raw.githubusercontent.com)
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/${encodeURIComponent(file.name)}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.raw' }
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
