@@ -589,15 +589,14 @@
     overflow: hidden;
     z-index: 0;
   }
-  .cloud-row::before {
+  .cloud-row::after {
     content: '';
     position: absolute;
-    left: 0; top: 0; bottom: 0;
+    left: 0; bottom: 0;
+    height: 2px;
     width: var(--prog, 0%);
     background: var(--prog-color, transparent);
-    opacity: 0.18;
-    z-index: -1;
-    transition: width 0.3s;
+    z-index: 1;
   }
   .cloud-row:hover { background: var(--surface2); }
   .cloud-row-type {
@@ -1873,7 +1872,7 @@
         row.innerHTML =
           `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
           `<span class="cloud-row-title">${book.title}</span>` +
-          `<span class="cloud-row-pct">${hasProgress ? pct + '%' : ''}</span>` +
+          `<span class="cloud-row-pct"${hasProgress ? ` style="color:hsl(${pct*1.2},70%,45%)"` : ''}>${hasProgress ? pct + '%' : ''}</span>` +
           `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
           `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
           `<span class="cloud-row-size">${sizeMB}M</span>`;
