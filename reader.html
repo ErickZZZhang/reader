@@ -652,6 +652,99 @@
   .cloud-row.downloading { opacity: 0.5; pointer-events: none; }
   .cloud-row.downloading .cloud-row-title::after { content: '  loading…'; color: var(--accent); font-size: 11px; font-weight: normal; }
 
+  /* Folder chips */
+  #cloud-folders {
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #cloud-folders::-webkit-scrollbar { display: none; }
+  .cloud-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .cloud-chip:hover { border-color: var(--accent); color: var(--text); }
+  .cloud-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cloud-chip .chip-n { font-size: 10px; opacity: 0.7; }
+  .cloud-chip.add-chip { border-style: dashed; font-size: 13px; padding: 4px 10px; }
+  .cloud-chip.add-chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Folder tag in book row (shown in "All" view) */
+  .cloud-row-folder {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Action button on book row */
+  .cloud-row-action {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 14px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    line-height: 1;
+  }
+  .cloud-row:hover .cloud-row-action { opacity: 1; }
+  .cloud-row-action:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+
+  /* Context / action menu */
+  #cloud-ctx {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 160px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    z-index: 200;
+    display: none;
+    font-size: 12px;
+  }
+  #cloud-ctx.show { display: block; }
+  .ctx-item {
+    padding: 7px 14px;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .ctx-item:hover { background: var(--surface2); }
+  .ctx-item.danger { color: #e55; }
+  .ctx-item.danger:hover { background: rgba(238,85,85,0.1); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+  .ctx-header { padding: 5px 14px; color: var(--text-dim); font-size: 11px; font-weight: bold; }
+
   /* Reading position memory indicator */
   #status-bar {
     background: var(--surface);
@@ -832,8 +925,12 @@
     #library-modal, #sync-modal, #cloud-modal { width: 96vw; max-height: 90vh; }
     #library-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
     #cloud-toolbar { padding: 8px 12px; }
+    #cloud-folders { padding: 6px 12px; gap: 5px; flex-wrap: nowrap; }
+    .cloud-chip { font-size: 11px; padding: 3px 9px; }
     .cloud-row { padding: 7px 12px; gap: 8px; }
     .cloud-row-chapter, .cloud-row-date, .cloud-row-size { display: none; }
+    .cloud-row-folder { max-width: 50px; font-size: 9px; }
+    .cloud-row-action { opacity: 0.5; }
     #sync-modal .body { padding: 14px; }
     #sync-modal input { padding: 10px; font-size: 14px; }
     #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
@@ -992,6 +1089,8 @@
       <span class="cloud-count" id="cloud-count"></span>
       <label id="cloud-open-btn" for="file-input" title="打开本地文件" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📂 打开文件</label>
       <input type="file" id="file-input" accept=".txt,.epub" style="display:none">
+      <label id="cloud-upload-btn" for="cloud-upload-input" title="上传书籍到云仓库" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📤 上传</label>
+      <input type="file" id="cloud-upload-input" accept=".txt,.epub" multiple style="display:none">
       <button id="cloud-local-btn" title="本地书库" style="background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:12px;padding:3px 8px;border-radius:4px;">📚 本地</button>
       <button id="cloud-config-toggle" title="设置">⚙ 设置</button>
       <button id="cloud-close">✕</button>
@@ -999,7 +1098,7 @@
     <div id="cloud-config">
       <label for="cloud-repo">GitHub 仓库（owner/repo）</label>
       <input type="text" id="cloud-repo" placeholder="ErickZZZhang/my-books">
-      <label for="cloud-token">Personal Access Token（scope: <code style="color:var(--accent)">repo</code> 或 fine-grained <code style="color:var(--accent)">contents:read</code>）</label>
+      <label for="cloud-token">Personal Access Token（scope: <code style="color:var(--accent)">repo</code> 或 fine-grained <code style="color:var(--accent)">contents:read+write</code>）</label>
       <input type="password" id="cloud-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
       <div class="cloud-actions">
         <button class="tb-btn" id="cloud-save-btn">保存</button>
@@ -1015,11 +1114,13 @@
         <option value="size">按大小</option>
       </select>
     </div>
+    <div id="cloud-folders"></div>
     <div id="cloud-list">
       <div id="cloud-empty">请先点击 ⚙ 设置 配置仓库和 Token</div>
     </div>
   </div>
 </div>
+<div id="cloud-ctx"></div>
 
 <script>
   let chapters = [];
@@ -1634,9 +1735,15 @@
     const configEl  = document.getElementById('cloud-config');
     const searchIn  = document.getElementById('cloud-search');
     const sortSel   = document.getElementById('cloud-sort');
+    const foldersEl = document.getElementById('cloud-folders');
+    const ctxMenu   = document.getElementById('cloud-ctx');
 
     let allBooks = [];
+    let folders = [];           // folder names found in repo
+    let currentFolder = null;   // null = show all, '' = root only, 'name' = specific folder
     let progressSha = localStorage.getItem(PROG_SHA_KEY) || '';
+
+    function encodePath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
 
     function repo()  { return localStorage.getItem(REPO_KEY) || ''; }
     function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
@@ -1780,23 +1887,30 @@
       });
     });
 
-    // ── Fetch book list ──
+    // ── Fetch book list (with subdirectory scanning) ──
+
+    function toBook(f, folder) {
+      const ext = f.name.match(/\.(txt|epub)$/i)[1].toLowerCase();
+      const title = f.name.replace(/\.(txt|epub)$/i, '');
+      const p = JSON.parse(localStorage.getItem(bookKey(f.name)) || '{}');
+      return { ...f, ext, title, folder, progress: p };
+    }
 
     async function fetchAndRender() {
       const r = repoIn.value.trim() || repo();
       const t = tokenIn.value.trim() || token();
-      if (!r || !t) { statusEl.textContent = '请填写仓库和 Token'; return; }
+      if (!r || !t) { countEl.textContent = '请填写仓库和 Token'; return; }
 
       allBooks = [];
+      folders = [];
+      renderFolderChips();
       renderList('加载中…');
 
       try {
-        // Pull progress first so cards show up-to-date info
         await pullProgress();
 
-        const res = await fetch(`https://api.github.com/repos/${r}/contents/`, {
-          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
-        });
+        const hdrs = { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' };
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/`, { headers: hdrs });
         if (!res.ok) {
           const msg = res.status === 401 ? 'Token 无效或无权限' :
                       res.status === 404 ? '仓库不存在或无权限' :
@@ -1804,27 +1918,97 @@
           renderList(msg);
           return;
         }
-        const files = await res.json();
-        allBooks = files
-          .filter(f => f.type === 'file' && /\.(txt|epub)$/i.test(f.name))
-          .map(f => {
-            const ext = f.name.match(/\.(txt|epub)$/i)[1].toLowerCase();
-            const title = f.name.replace(/\.(txt|epub)$/i, '');
-            const p = JSON.parse(localStorage.getItem(bookKey(f.name)) || '{}');
-            return { ...f, ext, title, progress: p };
-          });
+        const items = await res.json();
 
-        if (allBooks.length === 0) { renderList('仓库中没有 .txt 或 .epub 文件'); return; }
+        // Root-level books
+        const rootBooks = items
+          .filter(f => f.type === 'file' && /\.(txt|epub)$/i.test(f.name))
+          .map(f => toBook(f, ''));
+
+        // Subdirectories (skip hidden dirs)
+        const dirs = items.filter(f => f.type === 'dir' && !f.name.startsWith('.'));
+        folders = dirs.map(d => d.name).sort((a, b) => a.localeCompare(b, 'zh'));
+
+        // Fetch each directory in parallel
+        const dirResults = await Promise.all(dirs.map(dir =>
+          fetch(`https://api.github.com/repos/${r}/contents/${encodePath(dir.name)}`, { headers: hdrs })
+            .then(r => r.ok ? r.json() : [])
+            .then(files => files
+              .filter(f => f.type === 'file' && /\.(txt|epub)$/i.test(f.name))
+              .map(f => toBook(f, dir.name))
+            )
+            .catch(() => [])
+        ));
+
+        allBooks = rootBooks.concat(dirResults.flat());
+
+        if (allBooks.length === 0) { renderFolderChips(); renderList('仓库中没有 .txt 或 .epub 文件'); return; }
+        renderFolderChips();
         renderList();
       } catch (e) {
         renderList('网络错误: ' + e.message);
       }
     }
 
+    // ── Folder chips ──
+
+    function renderFolderChips() {
+      foldersEl.innerHTML = '';
+      if (folders.length === 0 && allBooks.length === 0) return;
+
+      // "All" chip
+      const allChip = document.createElement('span');
+      allChip.className = 'cloud-chip' + (currentFolder === null ? ' active' : '');
+      allChip.innerHTML = `全部 <span class="chip-n">${allBooks.length}</span>`;
+      allChip.onclick = () => { currentFolder = null; renderFolderChips(); renderList(); };
+      foldersEl.appendChild(allChip);
+
+      // Root (uncategorized) chip — only show if there are also folders
+      if (folders.length > 0) {
+        const rootCount = allBooks.filter(b => b.folder === '').length;
+        const rootChip = document.createElement('span');
+        rootChip.className = 'cloud-chip' + (currentFolder === '' ? ' active' : '');
+        rootChip.innerHTML = `未分组 <span class="chip-n">${rootCount}</span>`;
+        rootChip.onclick = () => { currentFolder = ''; renderFolderChips(); renderList(); };
+        foldersEl.appendChild(rootChip);
+      }
+
+      // Folder chips
+      folders.forEach(name => {
+        const count = allBooks.filter(b => b.folder === name).length;
+        const chip = document.createElement('span');
+        chip.className = 'cloud-chip' + (currentFolder === name ? ' active' : '');
+        chip.innerHTML = `${name} <span class="chip-n">${count}</span>`;
+        chip.onclick = () => { currentFolder = name; renderFolderChips(); renderList(); };
+        foldersEl.appendChild(chip);
+      });
+
+      // "+ New folder" chip
+      const addChip = document.createElement('span');
+      addChip.className = 'cloud-chip add-chip';
+      addChip.textContent = '+';
+      addChip.title = '新建分组';
+      addChip.onclick = createFolder;
+      foldersEl.appendChild(addChip);
+    }
+
+    function createFolder() {
+      const name = prompt('新建分组名称：');
+      if (!name || !name.trim()) return;
+      const n = name.trim();
+      if (folders.includes(n)) { countEl.textContent = '分组已存在'; return; }
+      folders.push(n);
+      folders.sort((a, b) => a.localeCompare(b, 'zh'));
+      currentFolder = n;
+      renderFolderChips();
+      renderList();
+    }
+
     // ── Render compact list ──
 
     function renderList(message) {
       list.innerHTML = '';
+      closeCtx();
 
       if (message || allBooks.length === 0) {
         list.innerHTML = `<div id="cloud-empty">${message || '请先点击 ⚙ 设置 配置仓库和 Token'}</div>`;
@@ -1833,10 +2017,18 @@
       }
 
       const q = searchIn.value.trim().toLowerCase();
-      let filtered = q ? allBooks.filter(b => b.title.toLowerCase().includes(q)) : [...allBooks];
+      let filtered = allBooks;
+
+      // Filter by folder
+      if (currentFolder !== null) {
+        filtered = filtered.filter(b => b.folder === currentFolder);
+      }
+
+      // Filter by search
+      if (q) filtered = filtered.filter(b => b.title.toLowerCase().includes(q));
 
       const sort = sortSel.value;
-      filtered.sort((a, b) => {
+      filtered = [...filtered].sort((a, b) => {
         if (sort === 'lastRead') return (b.progress.lastRead || 0) - (a.progress.lastRead || 0);
         if (sort === 'progress') {
           const pa = a.progress.totalChapters ? (a.progress.chapter || 0) / a.progress.totalChapters : -1;
@@ -1847,14 +2039,19 @@
         return a.title.localeCompare(b.title, 'zh');
       });
 
-      countEl.textContent = q ? `${filtered.length} / ${allBooks.length} 本` : `${allBooks.length} 本`;
+      const total = currentFolder !== null
+        ? allBooks.filter(b => b.folder === currentFolder).length
+        : allBooks.length;
+      countEl.textContent = q ? `${filtered.length} / ${total} 本` : `${total} 本`;
 
       if (filtered.length === 0) {
-        list.innerHTML = '<div id="cloud-empty">没有匹配的书籍</div>';
+        list.innerHTML = `<div id="cloud-empty">${currentFolder !== null && !q ? '该分组暂无书籍' : '没有匹配的书籍'}</div>`;
         return;
       }
 
       const t = tokenIn.value.trim() || token();
+      const showFolder = currentFolder === null && folders.length > 0;
+
       filtered.forEach(book => {
         const sizeMB = (book.size / 1024 / 1024).toFixed(1);
         const p = book.progress;
@@ -1869,14 +2066,29 @@
           row.style.setProperty('--prog', pct + '%');
           row.style.setProperty('--prog-color', `hsl(${pct * 1.2},70%,45%)`);
         }
+
+        const folderTag = showFolder && book.folder
+          ? `<span class="cloud-row-folder" title="${book.folder}">${book.folder}</span>` : '';
+
         row.innerHTML =
           `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
+          folderTag +
           `<span class="cloud-row-title">${book.title}</span>` +
           `<span class="cloud-row-pct"${hasProgress ? ` style="color:hsl(${pct*1.2},70%,45%)"` : ''}>${hasProgress ? pct + '%' : ''}</span>` +
           `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
           `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
-          `<span class="cloud-row-size">${sizeMB}M</span>`;
-        row.onclick = () => download(book, row, t);
+          `<span class="cloud-row-size">${sizeMB}M</span>` +
+          `<button class="cloud-row-action" title="管理">⋮</button>`;
+
+        // Click row → open book; click ⋮ → context menu
+        row.onclick = (e) => {
+          if (e.target.classList.contains('cloud-row-action')) return;
+          download(book, row, t);
+        };
+        row.querySelector('.cloud-row-action').onclick = (e) => {
+          e.stopPropagation();
+          showCtx(book, e.currentTarget);
+        };
         list.appendChild(row);
       });
     }
@@ -1886,7 +2098,7 @@
       const r = repoIn.value.trim() || repo();
       countEl.textContent = `正在打开《${file.title}》…`;
       try {
-        const res = await fetch(`https://api.github.com/repos/${r}/contents/${encodeURIComponent(file.name)}`, {
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(file.path)}`, {
           headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.raw' }
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1918,6 +2130,269 @@
         row.classList.remove('downloading');
       }
     }
+
+    // ── Context menu (move / delete) ──
+
+    let ctxBook = null;
+
+    function closeCtx() { ctxMenu.classList.remove('show'); ctxBook = null; }
+
+    function showCtx(book, btn) {
+      ctxBook = book;
+      ctxMenu.innerHTML = '';
+
+      // Header
+      const hdr = document.createElement('div');
+      hdr.className = 'ctx-header';
+      hdr.textContent = book.title;
+      ctxMenu.appendChild(hdr);
+
+      const sep1 = document.createElement('div');
+      sep1.className = 'ctx-sep';
+      ctxMenu.appendChild(sep1);
+
+      // Move options — show all folders except current
+      const targets = [];
+      if (book.folder !== '') targets.push({ label: '根目录', value: '' });
+      folders.forEach(f => {
+        if (f !== book.folder) targets.push({ label: f, value: f });
+      });
+
+      if (targets.length > 0) {
+        targets.forEach(t => {
+          const item = document.createElement('div');
+          item.className = 'ctx-item';
+          item.innerHTML = `📁 移到「${t.label}」`;
+          item.onclick = () => { closeCtx(); moveBook(book, t.value); };
+          ctxMenu.appendChild(item);
+        });
+      }
+
+      // Move to new folder
+      const newItem = document.createElement('div');
+      newItem.className = 'ctx-item';
+      newItem.innerHTML = '📁 移到新分组…';
+      newItem.onclick = () => {
+        closeCtx();
+        const name = prompt('新建分组名称：');
+        if (!name || !name.trim()) return;
+        const n = name.trim();
+        if (!folders.includes(n)) {
+          folders.push(n);
+          folders.sort((a, b) => a.localeCompare(b, 'zh'));
+        }
+        moveBook(book, n);
+      };
+      ctxMenu.appendChild(newItem);
+
+      const sep2 = document.createElement('div');
+      sep2.className = 'ctx-sep';
+      ctxMenu.appendChild(sep2);
+
+      // Delete
+      const del = document.createElement('div');
+      del.className = 'ctx-item danger';
+      del.innerHTML = '🗑 从云端删除';
+      del.onclick = () => { closeCtx(); deleteBook(book); };
+      ctxMenu.appendChild(del);
+
+      // Position near the button
+      const rect = btn.getBoundingClientRect();
+      ctxMenu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 250) + 'px';
+      ctxMenu.style.left = Math.min(rect.left - 120, window.innerWidth - 180) + 'px';
+      ctxMenu.classList.add('show');
+    }
+
+    // Close context menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!ctxMenu.contains(e.target) && !e.target.classList.contains('cloud-row-action')) closeCtx();
+    });
+
+    // ── Move book between folders ──
+
+    async function moveBook(book, targetFolder) {
+      const r = repoIn.value.trim() || repo();
+      const t = tokenIn.value.trim() || token();
+      const newPath = targetFolder ? `${targetFolder}/${book.name}` : book.name;
+      if (book.path === newPath) return;
+
+      countEl.textContent = `正在移动《${book.title}》…`;
+
+      try {
+        // Download raw content
+        const dlRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.raw' }
+        });
+        if (!dlRes.ok) throw new Error('下载失败');
+        const buf = await dlRes.arrayBuffer();
+        await new Promise(r => setTimeout(r, 0));
+        const base64 = arrayBufferToBase64(buf);
+
+        // Create at new path
+        const createBody = { message: `move ${book.name} to ${targetFolder || 'root'}`, content: base64 };
+        // Check if target already exists
+        try {
+          const check = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(newPath)}`, {
+            headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+          });
+          if (check.ok) { const d = await check.json(); createBody.sha = d.sha; }
+        } catch(e) {}
+
+        const createRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(newPath)}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(createBody)
+        });
+        if (!createRes.ok) throw new Error('创建失败: ' + (await createRes.json().catch(() => ({}))).message);
+
+        // Get SHA of old file for deletion
+        const metaRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!metaRes.ok) throw new Error('获取旧文件信息失败');
+        const meta = await metaRes.json();
+
+        // Delete old file
+        const delRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: `move ${book.name} from ${book.folder || 'root'}`, sha: meta.sha })
+        });
+        if (!delRes.ok) throw new Error('删除旧文件失败');
+
+        countEl.textContent = `已移动《${book.title}》→ ${targetFolder || '根目录'}`;
+        fetchAndRender();
+      } catch (e) {
+        countEl.textContent = `移动失败: ${e.message}`;
+        console.error('Move failed:', e);
+      }
+    }
+
+    // ── Delete book from repo ──
+
+    async function deleteBook(book) {
+      if (!confirm(`确定要从云端删除《${book.title}》吗？\n此操作不可恢复。`)) return;
+
+      const r = repoIn.value.trim() || repo();
+      const t = tokenIn.value.trim() || token();
+      countEl.textContent = `正在删除《${book.title}》…`;
+
+      try {
+        // Get current SHA
+        const metaRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!metaRes.ok) throw new Error('获取文件信息失败');
+        const meta = await metaRes.json();
+
+        const delRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: `delete ${book.name}`, sha: meta.sha })
+        });
+        if (!delRes.ok) throw new Error('删除失败');
+
+        countEl.textContent = `已删除《${book.title}》`;
+        fetchAndRender();
+      } catch (e) {
+        countEl.textContent = `删除失败: ${e.message}`;
+        console.error('Delete failed:', e);
+      }
+    }
+
+    // ── Upload book to GitHub repo ──
+
+    const uploadInput = document.getElementById('cloud-upload-input');
+
+    async function uploadFiles(files) {
+      const r = repoIn.value.trim() || repo();
+      const t = tokenIn.value.trim() || token();
+      if (!r || !t) { countEl.textContent = '请先配置仓库和 Token'; return; }
+
+      // Upload to the currently selected folder (or root)
+      const folder = (currentFolder && currentFolder !== '') ? currentFolder : '';
+      const total = files.length;
+      let done = 0, failed = 0;
+
+      for (const file of files) {
+        if (!/\.(txt|epub)$/i.test(file.name)) {
+          countEl.textContent = `跳过不支持的文件: ${file.name}`;
+          failed++;
+          continue;
+        }
+        const targetPath = folder ? `${folder}/${file.name}` : file.name;
+        countEl.textContent = `正在读取：${file.name}…`;
+
+        try {
+          const buf = await file.arrayBuffer();
+          countEl.textContent = `正在编码 (${done + 1}/${total})：${file.name}…`;
+          await new Promise(r => setTimeout(r, 0));
+          const base64 = arrayBufferToBase64(buf);
+
+          countEl.textContent = `正在上传 (${done + 1}/${total})：${file.name}${folder ? ' → ' + folder : ''}…`;
+          let sha = '';
+          try {
+            const check = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(targetPath)}`, {
+              headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
+            });
+            if (check.ok) {
+              const existing = await check.json();
+              sha = existing.sha;
+            }
+          } catch(e) {}
+
+          const body = {
+            message: `upload ${file.name}${folder ? ' to ' + folder : ''}`,
+            content: base64
+          };
+          if (sha) body.sha = sha;
+
+          const res = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(targetPath)}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || `HTTP ${res.status}`);
+          }
+          done++;
+        } catch (e) {
+          failed++;
+          countEl.textContent = `上传失败: ${file.name} — ${e.message}`;
+          console.error('Upload failed:', file.name, e);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      uploadInput.value = '';
+      if (done > 0) {
+        countEl.textContent = `上传完成: ${done} 本${folder ? ' → ' + folder : ''}${failed ? `，${failed} 本失败` : ''}`;
+        fetchAndRender();
+      } else if (failed > 0) {
+        countEl.textContent = `上传失败: ${failed} 本`;
+      }
+    }
+
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      const CHUNK = 8192;
+      const parts = [];
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+      }
+      return btoa(parts.join(''));
+    }
+
+    uploadInput.addEventListener('change', () => {
+      if (uploadInput.files.length) {
+        uploadFiles(Array.from(uploadInput.files)).catch(e => {
+          countEl.textContent = '上传出错: ' + e.message;
+          console.error('Upload error:', e);
+        });
+      }
+    });
 
     // Event listeners
     document.getElementById('cloud-btn').onclick = open;
