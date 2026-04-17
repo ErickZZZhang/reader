@@ -474,22 +474,16 @@
   #cloud-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--bg);
     z-index: 102;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   #cloud-modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    width: min(900px, 94vw);
-    max-height: 85vh;
+    background: var(--bg);
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
   }
   #cloud-header {
     padding: 14px 18px;
@@ -534,27 +528,24 @@
   #cloud-config input:focus { outline: none; border-color: var(--accent); }
   #cloud-config .cloud-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
   #cloud-config .cloud-hint { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
-  /* Search & sort bar */
-  #cloud-toolbar {
-    padding: 10px 18px;
+  /* Folder chips + sort bar (single row) */
+  #cloud-folders-bar {
+    padding: 8px 18px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
   }
-  #cloud-search {
+  #cloud-folders {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
     flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 12px;
-    border-radius: 5px;
-    font-size: 13px;
-    font-family: inherit;
+    min-width: 0;
   }
-  #cloud-search:focus { outline: none; border-color: var(--accent); }
-  #cloud-search::placeholder { color: var(--text-dim); }
+  #cloud-folders::-webkit-scrollbar { display: none; }
   #cloud-sort {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -563,106 +554,11 @@
     border-radius: 5px;
     font-size: 12px;
     cursor: pointer;
+    flex-shrink: 0;
   }
   #cloud-sort:focus { outline: none; border-color: var(--accent); }
-  #cloud-list {
-    overflow-y: auto;
-    flex: 1;
-  }
-  #cloud-list::-webkit-scrollbar { width: 6px; }
-  #cloud-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
-  #cloud-empty {
-    padding: 60px 20px;
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 13px;
-    line-height: 1.8;
-  }
-  .cloud-row {
-    display: flex;
-    align-items: center;
-    padding: 7px 18px;
-    gap: 10px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    z-index: 0;
-  }
-  .cloud-row::after {
-    content: '';
-    position: absolute;
-    left: 0; bottom: 0;
-    height: 2px;
-    width: var(--prog, 0%);
-    background: var(--prog-color, transparent);
-    z-index: 1;
-  }
-  .cloud-row:hover { background: var(--surface2); }
-  .cloud-row-type {
-    font-size: 9px;
-    font-weight: bold;
-    text-transform: uppercase;
-    padding: 2px 5px;
-    border-radius: 3px;
-    letter-spacing: 0.5px;
-    flex-shrink: 0;
-    width: 34px;
-    text-align: center;
-  }
-  .cloud-row-type.txt { background: rgba(143,168,118,0.2); color: var(--accent2); }
-  .cloud-row-type.epub { background: rgba(200,149,108,0.2); color: var(--accent); }
-  .cloud-row-title {
-    font-size: 13px;
-    color: var(--text);
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .cloud-row-pct {
-    font-size: 11px;
-    color: var(--text-dim);
-    width: 32px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-  .cloud-row-chapter {
-    font-size: 11px;
-    color: var(--text-dim);
-    width: 80px;
-    flex-shrink: 0;
-    text-align: center;
-  }
-  .cloud-row-date {
-    font-size: 11px;
-    color: var(--text-dim);
-    width: 70px;
-    flex-shrink: 0;
-    text-align: right;
-  }
-  .cloud-row-size {
-    font-size: 11px;
-    color: var(--text-dim);
-    width: 48px;
-    flex-shrink: 0;
-    text-align: right;
-  }
-  .cloud-row.downloading { opacity: 0.5; pointer-events: none; }
-  .cloud-row.downloading .cloud-row-title::after { content: '  loading…'; color: var(--accent); font-size: 11px; font-weight: normal; }
 
-  /* Folder chips */
-  #cloud-folders {
-    padding: 8px 18px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  #cloud-folders::-webkit-scrollbar { display: none; }
+  /* Chips */
   .cloud-chip {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -677,45 +573,132 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
   }
   .cloud-chip:hover { border-color: var(--accent); color: var(--text); }
   .cloud-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cloud-chip.drop-target {
+    background: rgba(200,149,108,0.18);
+    border-color: var(--accent);
+    color: var(--text);
+    transform: scale(1.05);
+  }
   .cloud-chip .chip-n { font-size: 10px; opacity: 0.7; }
   .cloud-chip.add-chip { border-style: dashed; font-size: 13px; padding: 4px 10px; }
   .cloud-chip.add-chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-  /* Folder tag in book row (shown in "All" view) */
-  .cloud-row-folder {
-    background: var(--surface2);
-    border: 1px solid var(--border);
+  /* Grid (always) */
+  #cloud-list {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    padding: 14px 18px;
+    align-content: start;
+  }
+  #cloud-list::-webkit-scrollbar { width: 6px; }
+  #cloud-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+  #cloud-empty {
+    grid-column: 1 / -1;
+    padding: 60px 20px;
+    text-align: center;
     color: var(--text-dim);
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    max-width: 70px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 1.8;
   }
 
-  /* Action button on book row */
-  .cloud-row-action {
-    background: none;
-    border: 1px solid transparent;
-    color: var(--text-dim);
-    cursor: pointer;
+  /* Ext badge (reused inside card) */
+  .cloud-row-type {
+    font-size: 9px;
+    font-weight: bold;
+    text-transform: uppercase;
     padding: 2px 5px;
-    border-radius: 4px;
-    font-size: 14px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
     flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
-    line-height: 1;
+    width: 34px;
+    text-align: center;
   }
-  .cloud-row:hover .cloud-row-action { opacity: 1; }
-  .cloud-row-action:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .cloud-row-type.txt { background: rgba(143,168,118,0.2); color: var(--accent2); }
+  .cloud-row-type.epub { background: rgba(200,149,108,0.2); color: var(--accent); }
 
+  /* Card */
+  .cloud-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 11px;
+    cursor: grab;
+    position: relative;
+    transition: border-color 0.1s, background 0.1s, opacity 0.15s;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 62px;
+  }
+  .cloud-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .cloud-card:active { cursor: grabbing; }
+  .cloud-card.downloading { opacity: 0.5; pointer-events: none; cursor: default; }
+  .cloud-card.downloading .cloud-card-title::after { content: '  loading…'; color: var(--accent); font-size: 10px; font-weight: normal; }
+  .cloud-card.dragging { opacity: 0.35; }
+
+  /* Progress ring */
+  .cloud-card-ring {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: conic-gradient(var(--prog-color, var(--border)) calc(var(--prog, 0%) * 1), var(--surface2) 0);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; position: relative;
+  }
+  .cloud-card-ring::before {
+    content: ''; position: absolute; inset: 3px;
+    background: var(--surface); border-radius: 50%;
+  }
+  .cloud-card:hover .cloud-card-ring::before { background: var(--surface2); }
+  .cloud-card-ring-label {
+    position: relative; font-size: 10px;
+    color: var(--text); font-weight: 500; line-height: 1;
+  }
+  .cloud-card-ring-label.dim { color: var(--text-dim); }
+
+  .cloud-card-body {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    gap: 3px;
+    padding-right: 18px;
+  }
+  .cloud-card-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .cloud-card-title {
+    font-size: 13px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; line-height: 1.3;
+  }
+  .cloud-card-meta {
+    font-size: 10px; color: var(--text-dim);
+    display: flex; justify-content: space-between; gap: 6px;
+  }
+  .cloud-card-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cloud-card-folder {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 1px 5px; border-radius: 3px;
+    font-size: 9px; flex-shrink: 0;
+    max-width: 70px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cloud-card-action {
+    position: absolute; top: 6px; right: 6px;
+    background: none; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    padding: 2px 5px; border-radius: 4px;
+    font-size: 13px; line-height: 1;
+    opacity: 0; transition: opacity 0.15s, background 0.15s;
+  }
+  .cloud-card:hover .cloud-card-action { opacity: 1; }
+  .cloud-card-action:hover { background: var(--surface); color: var(--text); border-color: var(--border); }
+
+  /* Folder tag in book row (shown in "All" view) */
   /* Context / action menu */
   #cloud-ctx {
     position: fixed;
@@ -922,15 +905,12 @@
     }
 
     /* Modals: roomier on mobile */
-    #library-modal, #sync-modal, #cloud-modal { width: 96vw; max-height: 90vh; }
+    #library-modal, #sync-modal { width: 96vw; max-height: 90vh; }
     #library-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
-    #cloud-toolbar { padding: 8px 12px; }
-    #cloud-folders { padding: 6px 12px; gap: 5px; flex-wrap: nowrap; }
+    #cloud-folders-bar { padding: 6px 12px; gap: 8px; }
     .cloud-chip { font-size: 11px; padding: 3px 9px; }
-    .cloud-row { padding: 7px 12px; gap: 8px; }
-    .cloud-row-chapter, .cloud-row-date, .cloud-row-size { display: none; }
-    .cloud-row-folder { max-width: 50px; font-size: 9px; }
-    .cloud-row-action { opacity: 0.5; }
+    #cloud-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 10px 12px; }
+    .cloud-card-action { opacity: 0.55; }
     #sync-modal .body { padding: 14px; }
     #sync-modal input { padding: 10px; font-size: 14px; }
     #sync-modal .actions .tb-btn { flex: 1 1 auto; min-width: 0; }
@@ -1105,16 +1085,15 @@
         <span class="cloud-hint" id="cloud-status"></span>
       </div>
     </div>
-    <div id="cloud-toolbar">
-      <input type="text" id="cloud-search" placeholder="搜索书名…">
-      <select id="cloud-sort">
+    <div id="cloud-folders-bar">
+      <div id="cloud-folders"></div>
+      <select id="cloud-sort" title="排序">
         <option value="name">按书名</option>
         <option value="lastRead">最近阅读</option>
         <option value="progress">阅读进度</option>
         <option value="size">按大小</option>
       </select>
     </div>
-    <div id="cloud-folders"></div>
     <div id="cloud-list">
       <div id="cloud-empty">请先点击 ⚙ 设置 配置仓库和 Token</div>
     </div>
@@ -1733,7 +1712,6 @@
     const statusEl  = document.getElementById('cloud-status');
     const countEl   = document.getElementById('cloud-count');
     const configEl  = document.getElementById('cloud-config');
-    const searchIn  = document.getElementById('cloud-search');
     const sortSel   = document.getElementById('cloud-sort');
     const foldersEl = document.getElementById('cloud-folders');
     const ctxMenu   = document.getElementById('cloud-ctx');
@@ -1752,8 +1730,7 @@
     function open() {
       repoIn.value  = repo();
       tokenIn.value = token();
-      overlay.style.display = 'flex';
-      searchIn.value = '';
+      overlay.style.display = 'block';
       configEl.classList.toggle('show', !configured());
       if (configured()) fetchAndRender();
       else { allBooks = []; renderList(); }
@@ -1910,7 +1887,7 @@
         await pullProgress();
 
         const hdrs = { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' };
-        const res = await fetch(`https://api.github.com/repos/${r}/contents/`, { headers: hdrs });
+        const res = await fetch(`https://api.github.com/repos/${r}/contents/`, { headers: hdrs, cache: 'no-store' });
         if (!res.ok) {
           const msg = res.status === 401 ? 'Token 无效或无权限' :
                       res.status === 404 ? '仓库不存在或无权限' :
@@ -1931,7 +1908,7 @@
 
         // Fetch each directory in parallel
         const dirResults = await Promise.all(dirs.map(dir =>
-          fetch(`https://api.github.com/repos/${r}/contents/${encodePath(dir.name)}`, { headers: hdrs })
+          fetch(`https://api.github.com/repos/${r}/contents/${encodePath(dir.name)}`, { headers: hdrs, cache: 'no-store' })
             .then(r => r.ok ? r.json() : [])
             .then(files => files
               .filter(f => f.type === 'file' && /\.(txt|epub)$/i.test(f.name))
@@ -1952,43 +1929,88 @@
 
     // ── Folder chips ──
 
+    // Attach drop-to-move handlers to a chip. targetFolder === null means no drop allowed (e.g. "全部").
+    function makeChipDropTarget(chip, targetFolder) {
+      if (targetFolder === null) return;
+      const allow = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; chip.classList.add('drop-target'); };
+      chip.ondragenter = allow;
+      chip.ondragover  = allow;
+      chip.ondragleave = (e) => {
+        // ignore bubbles from moving over child text/span inside the chip
+        if (chip.contains(e.relatedTarget)) return;
+        chip.classList.remove('drop-target');
+      };
+      chip.ondrop = (e) => {
+        e.preventDefault();
+        chip.classList.remove('drop-target');
+        const path = e.dataTransfer.getData('text/plain');
+        if (!path) { countEl.textContent = '移动失败: 未识别的拖拽数据'; return; }
+        const book = allBooks.find(b => b.path === path);
+        if (!book) { countEl.textContent = `移动失败: 找不到书籍 (${path})`; return; }
+        if ((book.folder || '') === targetFolder) return; // same folder, no-op
+        moveBook(book, targetFolder);
+      };
+    }
+
     function renderFolderChips() {
       foldersEl.innerHTML = '';
       if (folders.length === 0 && allBooks.length === 0) return;
 
-      // "All" chip
+      // "All" chip — not a drop target (it's a filter, not a folder)
       const allChip = document.createElement('span');
       allChip.className = 'cloud-chip' + (currentFolder === null ? ' active' : '');
       allChip.innerHTML = `全部 <span class="chip-n">${allBooks.length}</span>`;
       allChip.onclick = () => { currentFolder = null; renderFolderChips(); renderList(); };
       foldersEl.appendChild(allChip);
 
-      // Root (uncategorized) chip — only show if there are also folders
+      // Root (uncategorized) chip — drop here → move to root
       if (folders.length > 0) {
         const rootCount = allBooks.filter(b => b.folder === '').length;
         const rootChip = document.createElement('span');
         rootChip.className = 'cloud-chip' + (currentFolder === '' ? ' active' : '');
         rootChip.innerHTML = `未分组 <span class="chip-n">${rootCount}</span>`;
         rootChip.onclick = () => { currentFolder = ''; renderFolderChips(); renderList(); };
+        makeChipDropTarget(rootChip, '');
         foldersEl.appendChild(rootChip);
       }
 
-      // Folder chips
+      // Folder chips — drop here → move to folder
       folders.forEach(name => {
         const count = allBooks.filter(b => b.folder === name).length;
         const chip = document.createElement('span');
         chip.className = 'cloud-chip' + (currentFolder === name ? ' active' : '');
         chip.innerHTML = `${name} <span class="chip-n">${count}</span>`;
         chip.onclick = () => { currentFolder = name; renderFolderChips(); renderList(); };
+        makeChipDropTarget(chip, name);
         foldersEl.appendChild(chip);
       });
 
-      // "+ New folder" chip
+      // "+ New folder" chip — click to create, drop here to create + move
       const addChip = document.createElement('span');
       addChip.className = 'cloud-chip add-chip';
       addChip.textContent = '+';
-      addChip.title = '新建分组';
+      addChip.title = '新建分组（可拖书到此新建并移动）';
       addChip.onclick = createFolder;
+      const allowAdd = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; addChip.classList.add('drop-target'); };
+      addChip.ondragenter = allowAdd;
+      addChip.ondragover  = allowAdd;
+      addChip.ondragleave = (e) => { if (!addChip.contains(e.relatedTarget)) addChip.classList.remove('drop-target'); };
+      addChip.ondrop = (e) => {
+        e.preventDefault();
+        addChip.classList.remove('drop-target');
+        const path = e.dataTransfer.getData('text/plain');
+        if (!path) { countEl.textContent = '移动失败: 未识别的拖拽数据'; return; }
+        const book = allBooks.find(b => b.path === path);
+        if (!book) { countEl.textContent = `移动失败: 找不到书籍 (${path})`; return; }
+        const name = prompt('新建分组名称：');
+        if (!name || !name.trim()) return;
+        const n = name.trim();
+        if (!folders.includes(n)) {
+          folders.push(n);
+          folders.sort((a, b) => a.localeCompare(b, 'zh'));
+        }
+        moveBook(book, n);
+      };
       foldersEl.appendChild(addChip);
     }
 
@@ -2004,7 +2026,7 @@
       renderList();
     }
 
-    // ── Render compact list ──
+    // ── Render grid ──
 
     function renderList(message) {
       list.innerHTML = '';
@@ -2016,16 +2038,8 @@
         return;
       }
 
-      const q = searchIn.value.trim().toLowerCase();
       let filtered = allBooks;
-
-      // Filter by folder
-      if (currentFolder !== null) {
-        filtered = filtered.filter(b => b.folder === currentFolder);
-      }
-
-      // Filter by search
-      if (q) filtered = filtered.filter(b => b.title.toLowerCase().includes(q));
+      if (currentFolder !== null) filtered = filtered.filter(b => b.folder === currentFolder);
 
       const sort = sortSel.value;
       filtered = [...filtered].sort((a, b) => {
@@ -2039,58 +2053,82 @@
         return a.title.localeCompare(b.title, 'zh');
       });
 
-      const total = currentFolder !== null
-        ? allBooks.filter(b => b.folder === currentFolder).length
-        : allBooks.length;
-      countEl.textContent = q ? `${filtered.length} / ${total} 本` : `${total} 本`;
+      countEl.textContent = `${filtered.length} 本`;
 
       if (filtered.length === 0) {
-        list.innerHTML = `<div id="cloud-empty">${currentFolder !== null && !q ? '该分组暂无书籍' : '没有匹配的书籍'}</div>`;
+        const msg = currentFolder !== null ? '该分组暂无书籍' : '没有书籍';
+        list.innerHTML = `<div id="cloud-empty">${msg}</div>`;
         return;
       }
 
       const t = tokenIn.value.trim() || token();
       const showFolder = currentFolder === null && folders.length > 0;
+      filtered.forEach(book => list.appendChild(buildCard(book, t, showFolder)));
+    }
 
-      filtered.forEach(book => {
-        const sizeMB = (book.size / 1024 / 1024).toFixed(1);
-        const p = book.progress;
-        const total = p.totalChapters || 0;
-        const cur = (p.chapter != null ? p.chapter + 1 : 0);
-        const pct = total && cur ? Math.round(cur / total * 100) : 0;
-        const hasProgress = total > 0 && cur > 0;
+    function bookStats(book) {
+      const p = book.progress || {};
+      const total = p.totalChapters || 0;
+      const cur = (p.chapter != null ? p.chapter + 1 : 0);
+      const pct = total && cur ? Math.round(cur / total * 100) : 0;
+      return { p, total, cur, pct, hasProgress: total > 0 && cur > 0, isComplete: total > 0 && cur >= total };
+    }
 
-        const row = document.createElement('div');
-        row.className = 'cloud-row';
-        if (hasProgress) {
-          row.style.setProperty('--prog', pct + '%');
-          row.style.setProperty('--prog-color', `hsl(${pct * 1.2},70%,45%)`);
-        }
+    function buildCard(book, t, showFolder) {
+      const sizeMB = (book.size / 1024 / 1024).toFixed(1);
+      const s = bookStats(book);
 
-        const folderTag = showFolder && book.folder
-          ? `<span class="cloud-row-folder" title="${book.folder}">${book.folder}</span>` : '';
+      const card = document.createElement('div');
+      card.className = 'cloud-card';
+      if (s.hasProgress) {
+        const ringPct = s.isComplete ? 100 : s.pct;
+        card.style.setProperty('--prog', ringPct + '%');
+        card.style.setProperty('--prog-color', `hsl(${ringPct * 1.2},70%,50%)`);
+      }
 
-        row.innerHTML =
-          `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
-          folderTag +
-          `<span class="cloud-row-title">${book.title}</span>` +
-          `<span class="cloud-row-pct"${hasProgress ? ` style="color:hsl(${pct*1.2},70%,45%)"` : ''}>${hasProgress ? pct + '%' : ''}</span>` +
-          `<span class="cloud-row-chapter">${hasProgress ? cur + ' / ' + total + '章' : '未读'}</span>` +
-          `<span class="cloud-row-date">${p.lastRead ? fmtDate(p.lastRead) : '—'}</span>` +
-          `<span class="cloud-row-size">${sizeMB}M</span>` +
-          `<button class="cloud-row-action" title="管理">⋮</button>`;
+      const folderTag = showFolder && book.folder
+        ? `<span class="cloud-card-folder" title="${book.folder}">${book.folder}</span>` : '';
+      const ringLabel = s.isComplete ? '✓' : (s.hasProgress ? s.pct : '—');
+      const ringCls   = s.hasProgress ? '' : 'dim';
+      const metaLeft  = s.hasProgress ? `ch.${s.cur}/${s.total}` : (s.total ? s.total + ' 章' : '未读');
+      const metaRight = s.p.lastRead ? fmtDate(s.p.lastRead) : `${sizeMB}M`;
 
-        // Click row → open book; click ⋮ → context menu
-        row.onclick = (e) => {
-          if (e.target.classList.contains('cloud-row-action')) return;
-          download(book, row, t);
-        };
-        row.querySelector('.cloud-row-action').onclick = (e) => {
-          e.stopPropagation();
-          showCtx(book, e.currentTarget);
-        };
-        list.appendChild(row);
-      });
+      card.innerHTML =
+        `<div class="cloud-card-ring">` +
+          `<span class="cloud-card-ring-label ${ringCls}">${ringLabel}</span>` +
+        `</div>` +
+        `<div class="cloud-card-body">` +
+          `<div class="cloud-card-top">` +
+            `<span class="cloud-row-type ${book.ext}">${book.ext}</span>` +
+            folderTag +
+            `<span class="cloud-card-title">${book.title}</span>` +
+          `</div>` +
+          `<div class="cloud-card-meta">` +
+            `<span>${metaLeft}</span>` +
+            `<span>${metaRight}</span>` +
+          `</div>` +
+        `</div>` +
+        `<button class="cloud-card-action" title="管理">⋮</button>`;
+
+      card.onclick = (e) => {
+        if (e.target.classList.contains('cloud-card-action')) return;
+        download(book, card, t);
+      };
+      card.querySelector('.cloud-card-action').onclick = (e) => {
+        e.stopPropagation();
+        showCtx(book, e.currentTarget);
+      };
+
+      // Drag to move between folders
+      card.draggable = true;
+      card.ondragstart = (e) => {
+        e.dataTransfer.setData('text/plain', book.path);
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('dragging');
+      };
+      card.ondragend = () => card.classList.remove('dragging');
+
+      return card;
     }
 
     async function download(file, row, t) {
@@ -2205,66 +2243,82 @@
 
     // Close context menu on outside click
     document.addEventListener('click', (e) => {
-      if (!ctxMenu.contains(e.target) && !e.target.classList.contains('cloud-row-action')) closeCtx();
+      if (!ctxMenu.contains(e.target) && !e.target.classList.contains('cloud-card-action')) closeCtx();
     });
 
     // ── Move book between folders ──
 
     async function moveBook(book, targetFolder) {
+      if (book._moving) return;              // prevent concurrent moves of the same book
+      book._moving = true;
+
       const r = repoIn.value.trim() || repo();
       const t = tokenIn.value.trim() || token();
       const newPath = targetFolder ? `${targetFolder}/${book.name}` : book.name;
-      if (book.path === newPath) return;
+      if (book.path === newPath) { book._moving = false; return; }
+
+      const hdrs = { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' };
+      const errBody = async (res) => { try { return (await res.json()).message || ''; } catch { return ''; } };
 
       countEl.textContent = `正在移动《${book.title}》…`;
 
       try {
-        // Download raw content
+        // 1. Download raw content from old path
         const dlRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
-          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.raw' }
+          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.raw' },
+          cache: 'no-store',
         });
-        if (!dlRes.ok) throw new Error('下载失败');
+        if (!dlRes.ok) throw new Error(`下载失败 (${dlRes.status})`);
         const buf = await dlRes.arrayBuffer();
         await new Promise(r => setTimeout(r, 0));
         const base64 = arrayBufferToBase64(buf);
 
-        // Create at new path
+        // 2. PUT to new path (with sha if target already exists)
         const createBody = { message: `move ${book.name} to ${targetFolder || 'root'}`, content: base64 };
-        // Check if target already exists
         try {
-          const check = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(newPath)}`, {
-            headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
-          });
+          const check = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(newPath)}`, { headers: hdrs, cache: 'no-store' });
           if (check.ok) { const d = await check.json(); createBody.sha = d.sha; }
-        } catch(e) {}
+        } catch {}
 
         const createRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(newPath)}`, {
           method: 'PUT',
-          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(createBody)
+          headers: { ...hdrs, 'Content-Type': 'application/json' },
+          body: JSON.stringify(createBody),
         });
-        if (!createRes.ok) throw new Error('创建失败: ' + (await createRes.json().catch(() => ({}))).message);
+        if (!createRes.ok) throw new Error(`创建失败 (${createRes.status}) ${await errBody(createRes)}`);
 
-        // Get SHA of old file for deletion
-        const metaRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
-          headers: { 'Authorization': `Bearer ${t}`, 'Accept': 'application/vnd.github.v3+json' }
-        });
-        if (!metaRes.ok) throw new Error('获取旧文件信息失败');
-        const meta = await metaRes.json();
+        // 3. Delete old path. Re-fetch SHA right before DELETE (GitHub rejects stale SHA).
+        //    If DELETE fails, the repo will have BOTH files — retry once before giving up.
+        const doDelete = async () => {
+          const metaRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, { headers: hdrs, cache: 'no-store' });
+          if (metaRes.status === 404) return { gone: true };  // already deleted (e.g. by prior concurrent move)
+          if (!metaRes.ok) throw new Error(`获取旧文件信息失败 (${metaRes.status})`);
+          const meta = await metaRes.json();
+          const delRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
+            method: 'DELETE',
+            headers: { ...hdrs, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `move ${book.name} from ${book.folder || 'root'}`, sha: meta.sha }),
+          });
+          if (delRes.status === 404 || delRes.ok) return { ok: true };
+          return { ok: false, status: delRes.status, msg: await errBody(delRes) };
+        };
 
-        // Delete old file
-        const delRes = await fetch(`https://api.github.com/repos/${r}/contents/${encodePath(book.path)}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: `move ${book.name} from ${book.folder || 'root'}`, sha: meta.sha })
-        });
-        if (!delRes.ok) throw new Error('删除旧文件失败');
+        let delOutcome = await doDelete();
+        if (!delOutcome.ok && !delOutcome.gone) {
+          // One retry — stale-sha race is the most common failure
+          delOutcome = await doDelete();
+        }
+        if (!delOutcome.ok && !delOutcome.gone) {
+          throw new Error(`删除旧文件失败 (${delOutcome.status}) ${delOutcome.msg}`);
+        }
 
         countEl.textContent = `已移动《${book.title}》→ ${targetFolder || '根目录'}`;
-        fetchAndRender();
       } catch (e) {
         countEl.textContent = `移动失败: ${e.message}`;
         console.error('Move failed:', e);
+      } finally {
+        book._moving = false;
+        fetchAndRender();  // always refresh so UI reflects the actual repo state
       }
     }
 
@@ -2399,7 +2453,6 @@
     document.getElementById('cloud-close').onclick = close;
     document.getElementById('cloud-config-toggle').onclick = () => configEl.classList.toggle('show');
     document.getElementById('cloud-save-btn').onclick = save;
-    searchIn.addEventListener('input', () => renderList());
     sortSel.addEventListener('change', () => renderList());
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
