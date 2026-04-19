@@ -583,6 +583,10 @@
     color: var(--text);
     transform: scale(1.05);
   }
+  .cloud-chip.dragging { opacity: 0.4; cursor: grabbing; }
+  .cloud-chip.reorder-target { box-shadow: -3px 0 0 0 var(--accent); }
+  .cloud-chip[draggable="true"] { cursor: grab; }
+  .cloud-chip[draggable="true"].active { cursor: grab; }
   .cloud-chip .chip-n { font-size: 10px; opacity: 0.7; }
   .cloud-chip.add-chip { border-style: dashed; font-size: 13px; padding: 4px 10px; }
   .cloud-chip.add-chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -1766,6 +1770,26 @@
     function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
     function configured() { return repo() && token(); }
 
+    // ── Folder ordering (persisted per-repo) ──
+    const FOLDER_ORDER_KEY_PREFIX = 'cloud:folder-order:';
+    function folderOrderKey() { return FOLDER_ORDER_KEY_PREFIX + repo(); }
+    function loadFolderOrder() {
+      try { return JSON.parse(localStorage.getItem(folderOrderKey()) || '[]') || []; }
+      catch (e) { return []; }
+    }
+    function saveFolderOrder() {
+      try { localStorage.setItem(folderOrderKey(), JSON.stringify(folders)); } catch (e) {}
+    }
+    function applyFolderOrder() {
+      const saved = loadFolderOrder();
+      const present = new Set(folders);
+      const ordered = saved.filter(n => present.has(n));
+      const seen = new Set(ordered);
+      const newOnes = folders.filter(n => !seen.has(n))
+                             .sort((a, b) => a.localeCompare(b, 'zh'));
+      folders = ordered.concat(newOnes);
+    }
+
     function open() {
       repoIn.value  = repo();
       tokenIn.value = token();
@@ -1943,7 +1967,8 @@
 
         // Subdirectories (skip hidden dirs)
         const dirs = items.filter(f => f.type === 'dir' && !f.name.startsWith('.'));
-        folders = dirs.map(d => d.name).sort((a, b) => a.localeCompare(b, 'zh'));
+        folders = dirs.map(d => d.name);
+        applyFolderOrder();
 
         // Fetch each directory in parallel
         const dirResults = await Promise.all(dirs.map(dir =>
@@ -1968,20 +1993,39 @@
 
     // ── Folder chips ──
 
-    // Attach drop-to-move handlers to a chip. targetFolder === null means no drop allowed (e.g. "全部").
+    // Attach drop handlers to a chip. Handles BOTH:
+    //  - book card → chip  (move book to that folder)
+    //  - folder chip → folder chip  (reorder folders; only valid on real folder chips)
+    // targetFolder === null  → "全部" chip, no drops allowed
+    // targetFolder === ''    → "未分组" chip, accepts books only
+    // targetFolder === name  → real folder chip, accepts books and reorder
     function makeChipDropTarget(chip, targetFolder) {
       if (targetFolder === null) return;
-      const allow = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; chip.classList.add('drop-target'); };
+      const isRealFolder = targetFolder !== '';
+      const allow = (e) => {
+        const types = Array.from(e.dataTransfer.types || []);
+        const isReorder = types.includes('application/x-cloud-folder');
+        if (isReorder && !isRealFolder) return; // reorder not allowed on 未分组
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        chip.classList.add(isReorder ? 'reorder-target' : 'drop-target');
+      };
       chip.ondragenter = allow;
       chip.ondragover  = allow;
       chip.ondragleave = (e) => {
-        // ignore bubbles from moving over child text/span inside the chip
         if (chip.contains(e.relatedTarget)) return;
         chip.classList.remove('drop-target');
+        chip.classList.remove('reorder-target');
       };
       chip.ondrop = (e) => {
         e.preventDefault();
         chip.classList.remove('drop-target');
+        chip.classList.remove('reorder-target');
+        const draggedFolder = e.dataTransfer.getData('application/x-cloud-folder');
+        if (draggedFolder && isRealFolder) {
+          reorderFolder(draggedFolder, targetFolder);
+          return;
+        }
         const path = e.dataTransfer.getData('text/plain');
         if (!path) { countEl.textContent = '移动失败: 未识别的拖拽数据'; return; }
         const book = allBooks.find(b => b.path === path);
@@ -1989,6 +2033,141 @@
         if ((book.folder || '') === targetFolder) return; // same folder, no-op
         moveBook(book, targetFolder);
       };
+    }
+
+    // Move folder `name` to the position before `targetName` (insert-before).
+    function reorderFolder(name, targetName) {
+      if (!name || name === targetName) return;
+      const fromIdx = folders.indexOf(name);
+      if (fromIdx < 0) return;
+      const arr = folders.slice();
+      arr.splice(fromIdx, 1);
+      const toIdx = arr.indexOf(targetName);
+      if (toIdx < 0) return;
+      arr.splice(toIdx, 0, name);
+      folders = arr;
+      saveFolderOrder();
+      renderFolderChips();
+    }
+
+    // Right-click a folder chip → show ctx menu with rename / delete.
+    function showFolderCtx(folderName, event) {
+      ctxBook = null;
+      ctxMenu.innerHTML = '';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'ctx-header';
+      hdr.textContent = folderName;
+      ctxMenu.appendChild(hdr);
+
+      const sep1 = document.createElement('div');
+      sep1.className = 'ctx-sep';
+      ctxMenu.appendChild(sep1);
+
+      const renameItem = document.createElement('div');
+      renameItem.className = 'ctx-item';
+      renameItem.innerHTML = '✏️ 重命名分组';
+      renameItem.onclick = () => { closeCtx(); renameFolder(folderName); };
+      ctxMenu.appendChild(renameItem);
+
+      const sep2 = document.createElement('div');
+      sep2.className = 'ctx-sep';
+      ctxMenu.appendChild(sep2);
+
+      const delItem = document.createElement('div');
+      delItem.className = 'ctx-item danger';
+      delItem.innerHTML = '🗑 删除分组';
+      delItem.onclick = () => { closeCtx(); deleteFolder(folderName); };
+      ctxMenu.appendChild(delItem);
+
+      // Position at cursor, clamped to viewport
+      const x = Math.min(event.clientX, window.innerWidth - 200);
+      const y = Math.min(event.clientY, window.innerHeight - 160);
+      ctxMenu.style.left = x + 'px';
+      ctxMenu.style.top  = y + 'px';
+      ctxMenu.classList.add('show');
+    }
+
+    async function renameFolder(oldName) {
+      const input = prompt(`重命名分组 「${oldName}」 为：`, oldName);
+      if (input === null) return;
+      const newName = input.trim();
+      if (!newName || newName === oldName) return;
+      if (newName.includes('/') || newName.startsWith('.')) {
+        countEl.textContent = '分组名不能包含 / 或以 . 开头'; return;
+      }
+      if (folders.includes(newName)) {
+        countEl.textContent = `分组「${newName}」已存在`; return;
+      }
+
+      const booksInFolder = allBooks.filter(b => b.folder === oldName);
+
+      // Update local order: replace oldName with newName at the same position
+      const idx = folders.indexOf(oldName);
+      if (idx >= 0) {
+        folders[idx] = newName;
+        saveFolderOrder();
+      }
+
+      if (booksInFolder.length === 0) {
+        // No GitHub work — folder only existed locally
+        if (currentFolder === oldName) currentFolder = newName;
+        renderFolderChips();
+        countEl.textContent = `分组已重命名为「${newName}」`;
+        return;
+      }
+
+      countEl.textContent = `正在重命名分组（${booksInFolder.length} 本书）…`;
+      if (currentFolder === oldName) currentFolder = newName;
+      renderFolderChips();
+
+      // Move all books to the new folder name. Skip per-move re-render; one refresh at end.
+      for (const book of booksInFolder) {
+        await moveBook(book, newName, { skipRender: true });
+      }
+      countEl.textContent = `分组「${oldName}」已重命名为「${newName}」`;
+      fetchAndRender();
+    }
+
+    async function deleteFolder(folderName) {
+      const booksInFolder = allBooks.filter(b => b.folder === folderName);
+
+      if (booksInFolder.length === 0) {
+        if (!confirm(`确定删除空分组「${folderName}」吗？`)) return;
+        const idx = folders.indexOf(folderName);
+        if (idx >= 0) {
+          folders.splice(idx, 1);
+          saveFolderOrder();
+        }
+        if (currentFolder === folderName) currentFolder = null;
+        renderFolderChips();
+        renderList();
+        countEl.textContent = `已删除分组「${folderName}」`;
+        return;
+      }
+
+      const ok = confirm(
+        `分组「${folderName}」下有 ${booksInFolder.length} 本书。\n` +
+        `删除分组将把这些书移动到根目录（未分组）。\n继续吗？`
+      );
+      if (!ok) return;
+
+      countEl.textContent = `正在清空分组「${folderName}」（${booksInFolder.length} 本书）…`;
+      if (currentFolder === folderName) currentFolder = '';
+      renderFolderChips();
+
+      for (const book of booksInFolder) {
+        await moveBook(book, '', { skipRender: true });
+      }
+
+      // Remove from local order list (the GitHub dir disappears once empty)
+      const idx = folders.indexOf(folderName);
+      if (idx >= 0) {
+        folders.splice(idx, 1);
+        saveFolderOrder();
+      }
+      countEl.textContent = `已删除分组「${folderName}」`;
+      fetchAndRender();
     }
 
     function renderFolderChips() {
@@ -2013,13 +2192,22 @@
         foldersEl.appendChild(rootChip);
       }
 
-      // Folder chips — drop here → move to folder
+      // Folder chips — drop here → move to folder; drag the chip itself → reorder
       folders.forEach(name => {
         const count = allBooks.filter(b => b.folder === name).length;
         const chip = document.createElement('span');
         chip.className = 'cloud-chip' + (currentFolder === name ? ' active' : '');
         chip.innerHTML = `${name} <span class="chip-n">${count}</span>`;
+        chip.title = '点击切换 · 拖拽调整顺序 · 右键重命名/删除';
         chip.onclick = () => { currentFolder = name; renderFolderChips(); renderList(); };
+        chip.oncontextmenu = (e) => { e.preventDefault(); showFolderCtx(name, e); };
+        chip.draggable = true;
+        chip.ondragstart = (e) => {
+          e.dataTransfer.setData('application/x-cloud-folder', name);
+          e.dataTransfer.effectAllowed = 'move';
+          chip.classList.add('dragging');
+        };
+        chip.ondragend = () => chip.classList.remove('dragging');
         makeChipDropTarget(chip, name);
         foldersEl.appendChild(chip);
       });
@@ -2046,7 +2234,7 @@
         const n = name.trim();
         if (!folders.includes(n)) {
           folders.push(n);
-          folders.sort((a, b) => a.localeCompare(b, 'zh'));
+          saveFolderOrder();
         }
         moveBook(book, n);
       };
@@ -2059,7 +2247,7 @@
       const n = name.trim();
       if (folders.includes(n)) { countEl.textContent = '分组已存在'; return; }
       folders.push(n);
-      folders.sort((a, b) => a.localeCompare(b, 'zh'));
+      saveFolderOrder();
       currentFolder = n;
       renderFolderChips();
       renderList();
@@ -2259,7 +2447,7 @@
         const n = name.trim();
         if (!folders.includes(n)) {
           folders.push(n);
-          folders.sort((a, b) => a.localeCompare(b, 'zh'));
+          saveFolderOrder();
         }
         moveBook(book, n);
       };
@@ -2290,7 +2478,8 @@
 
     // ── Move book between folders ──
 
-    async function moveBook(book, targetFolder) {
+    async function moveBook(book, targetFolder, opts) {
+      opts = opts || {};
       if (book._moving) return;              // prevent concurrent moves of the same book
       book._moving = true;
 
@@ -2360,7 +2549,7 @@
         console.error('Move failed:', e);
       } finally {
         book._moving = false;
-        fetchAndRender();  // always refresh so UI reflects the actual repo state
+        if (!opts.skipRender) fetchAndRender();  // always refresh so UI reflects the actual repo state
       }
     }
 
