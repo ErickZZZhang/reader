@@ -321,6 +321,15 @@
     margin: 1em auto;
     border-radius: 4px;
   }
+  /* EPUB chapter wrapper — book CSS is scoped to this class via selector rewriting */
+  #content .epub-body {
+    line-height: 2;
+    letter-spacing: 0.05em;
+    word-wrap: break-word;
+  }
+  #content .epub-body p { margin: 0 0 1em; text-indent: 2em; }
+  #content .epub-body img, #content .epub-body svg { max-width: 100%; height: auto; }
+  #content .epub-body a { color: inherit; }
 
   /* Empty state */
   #empty-state {
@@ -1191,12 +1200,79 @@
 
   // ── EPUB parser ──────────────────────────────────────────────────────
   // Extracts chapters from an EPUB (ZIP of XHTML) via JSZip.
-  // Returns [{title, content, html?}, ...] — html flag means content is HTML with images.
-  // Also stores extracted blob URLs in epubBlobUrls for cleanup.
+  // Returns [{title, content, html, css, bodyAttrs}, ...] — EPUB chapters
+  // render inline in #content; the book's CSS is rewritten by scopeBookCss
+  // so every selector is scoped to `.epub-body`, preserving book styling
+  // without leaking into app chrome.
+  // Blob URLs for images + fonts are stored in epubBlobUrls for cleanup.
+
   let epubBlobUrls = [];
   function cleanupEpubBlobs() {
     epubBlobUrls.forEach(u => URL.revokeObjectURL(u));
     epubBlobUrls = [];
+  }
+
+  // Resolve a relative zip path against a base directory (handles ./ and ../)
+  function resolveZipPath(baseDir, relPath) {
+    if (!relPath || /^([a-z]+:|#)/i.test(relPath)) return relPath;
+    if (relPath.startsWith('/')) relPath = relPath.slice(1);
+    const parts = (baseDir + relPath).split('/');
+    const out = [];
+    for (const p of parts) {
+      if (p === '..') out.pop();
+      else if (p !== '.' && p !== '') out.push(p);
+    }
+    return out.join('/');
+  }
+
+  // Rewrite url(...) references in CSS to blob URLs via the asset map.
+  function rewriteCssUrls(cssText, cssDir, assetMap) {
+    return cssText.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, url) => {
+      if (/^(data:|https?:|blob:)/i.test(url)) return m;
+      const clean = url.split('#')[0].split('?')[0];
+      const abs = resolveZipPath(cssDir, clean);
+      return assetMap[abs] ? `url("${assetMap[abs]}")` : m;
+    });
+  }
+
+  // Scope a book's CSS so every selector only matches inside `.epub-body`,
+  // and rewrite `body`/`html` selectors to target the wrapper itself. Uses
+  // CSSStyleSheet to parse robustly rather than eating selectors inside
+  // comments or url() values.
+  function scopeBookCss(cssText) {
+    // Using `#content .epub-body` (not just `.epub-body`) so book selectors
+    // out-specific the app's `#content p { ... }` rules.
+    const SCOPE = '#content .epub-body';
+    const SCOPE_CLASS_ONLY = '.epub-body';
+    const scopeSelectors = (selectorText) => selectorText.split(',').map(s => {
+      s = s.trim();
+      if (!s) return s;
+      // html/body at the start become the wrapper itself (class-only, so `body.cover` → `.epub-body.cover`)
+      s = s.replace(/^(html|body)(?![a-zA-Z0-9_-])/, SCOPE_CLASS_ONLY);
+      // html/body anywhere else (e.g. `body .foo`) also collapse to wrapper
+      s = s.replace(/([\s,>+~(\[])(html|body)(?![a-zA-Z0-9_-])/g, '$1' + SCOPE_CLASS_ONLY);
+      // Anything that doesn't already target the wrapper gets prefixed with the full scope
+      if (!s.startsWith(SCOPE_CLASS_ONLY) && !s.startsWith(':')) s = `${SCOPE} ${s}`;
+      else if (s.startsWith(SCOPE_CLASS_ONLY)) s = '#content ' + s;
+      return s;
+    }).join(', ');
+    const walk = (rules, out) => {
+      for (const rule of rules) {
+        if (rule.selectorText !== undefined) {
+          try { rule.selectorText = scopeSelectors(rule.selectorText); } catch (e) {}
+        }
+        if (rule.cssRules && rule.cssRules.length) walk(rule.cssRules, out);
+      }
+    };
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(cssText);
+      walk(sheet.cssRules, []);
+      return Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+    } catch (e) {
+      // Fallback: leave CSS as-is (may leak — graceful degradation)
+      return cssText;
+    }
   }
 
   async function parseEpub(file) {
@@ -1238,50 +1314,68 @@
       } catch (e) { /* toc parse failure is non-fatal */ }
     }
 
-    // 4. Build image blob URL map — extract all images from the ZIP once
-    const imgMap = {}; // zip path → blob URL
+    // 4. Build asset map: images + fonts extracted once, referenced via blob URLs
+    const ASSET_MIME = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      svg: 'image/svg+xml', bmp: 'image/bmp',
+      ttf: 'font/ttf', otf: 'font/otf',
+      woff: 'font/woff', woff2: 'font/woff2',
+      eot: 'application/vnd.ms-fontobject',
+    };
+    const assetMap = {}; // zip path → blob URL
     for (const [path, entry] of Object.entries(zip.files)) {
       if (entry.dir) continue;
-      const lower = path.toLowerCase();
-      if (/\.(jpe?g|png|gif|webp|svg|bmp)$/.test(lower)) {
-        const mime = lower.endsWith('.svg') ? 'image/svg+xml'
-          : lower.endsWith('.png') ? 'image/png'
-          : lower.endsWith('.gif') ? 'image/gif'
-          : lower.endsWith('.webp') ? 'image/webp'
-          : 'image/jpeg';
-        const blob = await entry.async('blob');
-        const url = URL.createObjectURL(new Blob([blob], { type: mime }));
-        imgMap[path] = url;
-        epubBlobUrls.push(url);
-      }
+      const ext = path.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+      if (!ext || !ASSET_MIME[ext]) continue;
+      const blob = await entry.async('blob');
+      const url = URL.createObjectURL(new Blob([blob], { type: ASSET_MIME[ext] }));
+      assetMap[path] = url;
+      epubBlobUrls.push(url);
     }
 
-    // 5. Extract content from each spine XHTML file
+    // 5. Build CSS file map — read each .css, rewrite url() refs to blob URLs
+    const cssMap = {}; // zip path → rewritten CSS text
+    for (const [path, entry] of Object.entries(zip.files)) {
+      if (entry.dir || !path.toLowerCase().endsWith('.css')) continue;
+      const cssText = await entry.async('string');
+      const cssDir = path.includes('/') ? path.substring(0, path.lastIndexOf('/') + 1) : '';
+      cssMap[path] = rewriteCssUrls(cssText, cssDir, assetMap);
+    }
+
+    // 6. Extract content from each spine XHTML file
     const result = [];
     for (const href of spineHrefs) {
       const entry = zip.file(href);
       if (!entry) continue;
       const xhtml = await entry.async('string');
       const doc = new DOMParser().parseFromString(xhtml, 'application/xhtml+xml');
-      doc.querySelectorAll('script, style, link').forEach(el => el.remove());
       const body = doc.body || doc.documentElement;
       if (!body) continue;
 
-      // Resolve image src paths to blob URLs
       const chapterDir = href.includes('/') ? href.substring(0, href.lastIndexOf('/') + 1) : '';
+
+      // Collect CSS before stripping the tags — external stylesheets first, then inline <style>
+      const cssPieces = [];
+      doc.querySelectorAll('link[rel~="stylesheet"], link[type="text/css"]').forEach(link => {
+        const linkHref = link.getAttribute('href');
+        if (!linkHref) return;
+        const abs = resolveZipPath(chapterDir, linkHref);
+        if (cssMap[abs]) cssPieces.push(cssMap[abs]);
+      });
+      doc.querySelectorAll('style').forEach(styleEl => {
+        cssPieces.push(rewriteCssUrls(styleEl.textContent || '', chapterDir, assetMap));
+      });
+      doc.querySelectorAll('script, style, link').forEach(el => el.remove());
+
+      // Resolve image src paths to blob URLs
       let hasImages = false;
       body.querySelectorAll('img, image').forEach(img => {
         const src = img.getAttribute('src') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
         if (!src) return;
-        // Resolve relative path
-        const resolved = src.startsWith('/') ? src.slice(1) : chapterDir + src;
-        // Normalize path (handle ../)
-        const parts = resolved.split('/');
-        const norm = [];
-        for (const p of parts) { if (p === '..') norm.pop(); else if (p !== '.') norm.push(p); }
-        const normPath = norm.join('/');
-        if (imgMap[normPath]) {
-          img.setAttribute('src', imgMap[normPath]);
+        const abs = resolveZipPath(chapterDir, src);
+        if (assetMap[abs]) {
+          img.setAttribute('src', assetMap[abs]);
           hasImages = true;
         }
       });
@@ -1295,12 +1389,17 @@
         || doc.querySelector('h1, h2, h3')?.textContent?.trim()
         || href.split('/').pop().replace(/\.\w+$/, '');
 
-      if (hasImages) {
-        // Keep HTML to preserve images
-        result.push({ title, content: body.innerHTML, html: true });
-      } else {
-        result.push({ title, content: text });
-      }
+      // Preserve <body> attributes so book CSS selectors like `body.cover` still match
+      const bodyAttrs = {};
+      for (const a of body.attributes) bodyAttrs[a.name] = a.value;
+
+      result.push({
+        title,
+        content: body.innerHTML,
+        html: true,
+        css: cssPieces.join('\n\n'),
+        bodyAttrs,
+      });
     }
     return result;
   }
@@ -1343,7 +1442,10 @@
   });
 
   function parseNovel(name, text, preChapters, skipSave) {
-    cleanupEpubBlobs(); // free any previous EPUB image blobs
+    // Only free EPUB blobs when loading a non-EPUB book. When preChapters
+    // is set (EPUB path), parseEpub already cleaned up and created fresh
+    // blobs — revoking them here would break the book's images and fonts.
+    if (!preChapters) cleanupEpubBlobs();
     if (preChapters && preChapters.length) {
       // EPUB (or other pre-parsed source): chapters already split
       chapters = preChapters;
@@ -1418,14 +1520,44 @@
     return `<p>${t}</p>`;
   }
 
+  // EPUB chapters render inline in #content. The book's CSS is rewritten
+  // so every selector is scoped to `.epub-body`, keeping it from leaking
+  // into app chrome. Blob URLs for images/fonts live in the same document
+  // so there's no cross-frame origin issue.
+  function renderInlineEpubChapter(ch) {
+    contentEl.innerHTML = '';
+    if (ch.css) {
+      const styleEl = document.createElement('style');
+      styleEl.textContent = scopeBookCss(ch.css);
+      contentEl.appendChild(styleEl);
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'epub-body';
+    // Forward <body> attrs so selectors like `body.cover` still match
+    for (const [k, v] of Object.entries(ch.bodyAttrs || {})) {
+      if (k === 'class') wrapper.className += ' ' + v;
+      else wrapper.setAttribute(k, v);
+    }
+    // User's font choice wins over the book's typography. Inline styles on
+    // the wrapper beat scoped stylesheet rules (specificity-wise). Children
+    // with explicit font rules (decorative titles, etc.) still use book fonts.
+    wrapper.style.fontSize = fontSize + 'px';
+    if (fontFamily) wrapper.style.fontFamily = fontFamily;
+    wrapper.innerHTML = ch.content;
+    contentEl.appendChild(wrapper);
+  }
+
   function loadChapter(idx, scrollTo = 0) {
     if (idx < 0 || idx >= chapters.length) return;
     currentChapter = idx;
 
     chapterTitle.textContent = chapters[idx].title;
     const ch = chapters[idx];
-    if (ch.html) {
-      // EPUB chapter with images — render HTML directly
+    if (ch.html && typeof ch.css === 'string') {
+      // EPUB chapter with preserved book styling
+      renderInlineEpubChapter(ch);
+    } else if (ch.html) {
+      // Legacy/cached EPUB chapter without CSS — raw HTML for images
       contentEl.innerHTML = ch.content;
     } else {
       // Plain text — render paragraphs, image URLs become inline images
@@ -1581,6 +1713,10 @@
   function setFont(size) {
     fontSize = Math.min(32, Math.max(12, size));
     contentEl.style.fontSize = fontSize + 'px';
+    // Also update the EPUB wrapper (if rendered) so the user's size wins
+    // over the book's scoped CSS.
+    const w = contentEl.querySelector('.epub-body');
+    if (w) w.style.fontSize = fontSize + 'px';
     fontDisplay.textContent = fontSize;
   }
   document.getElementById('font-inc').onclick = () => { setFont(fontSize + 1); savePrefs(); };
@@ -1591,6 +1727,8 @@
   function setFontFamily(family) {
     fontFamily = family;
     document.body.style.fontFamily = family;
+    const w = contentEl.querySelector('.epub-body');
+    if (w) w.style.fontFamily = family;
     fontSelect.value = family;
   }
   fontSelect.addEventListener('change', () => { setFontFamily(fontSelect.value); savePrefs(); });
