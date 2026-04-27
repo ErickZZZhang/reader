@@ -11,6 +11,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#282a36">
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #1a1a1a;
@@ -62,7 +65,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Serif SC', serif;
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -984,11 +987,11 @@
   <div class="sep"></div>
 
   <select id="font-select">
-    <option value="'Microsoft YaHei','PingFang SC',sans-serif">雅黑</option>
-    <option value="'SimSun','Songti SC','Noto Serif SC',serif">宋体</option>
-    <option value="'KaiTi','STKaiti','AR PL UKai CN',serif">楷体</option>
-    <option value="'SimHei','STHeiti','Noto Sans SC',sans-serif">黑体</option>
-    <option value="'FangSong','STFangsong',serif">仿宋</option>
+    <option value="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">雅黑</option>
+    <option value="'Songti SC','SimSun','Noto Serif SC',serif">宋体</option>
+    <option value="'Kaiti SC','STKaiti','KaiTi','AR PL UKai CN',serif">楷体</option>
+    <option value="'Heiti SC','STHeiti','SimHei','Noto Sans SC',sans-serif">黑体</option>
+    <option value="'STFangsong','FangSong',serif">仿宋</option>
     <option value="'Noto Serif SC',serif">Noto Serif</option>
   </select>
 
@@ -1171,7 +1174,7 @@
     localStorage.setItem(currentBookKey, JSON.stringify(data));
   }
 
-  let fontFamily = "'Microsoft YaHei','PingFang SC',sans-serif";
+  let fontFamily = "'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif";
 
   function savePrefs() {
     localStorage.setItem('reader:prefs', JSON.stringify({ fontSize, readerWidth, fontFamily, sidebarWidth, theme: document.body.className }));
@@ -1725,6 +1728,10 @@
   // Font family
   const fontSelect = document.getElementById('font-select');
   function setFontFamily(family) {
+    // If a legacy saved value no longer matches any option, snap to the first one
+    // so the dropdown doesn't render blank.
+    const known = Array.from(fontSelect.options).some(o => o.value === family);
+    if (!known) family = fontSelect.options[0].value;
     fontFamily = family;
     document.body.style.fontFamily = family;
     const w = contentEl.querySelector('.epub-body');
